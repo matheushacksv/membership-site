@@ -1,0 +1,25 @@
+{
+  "name": "frontend",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "lucide-vue-next": "^1.0.0",
+    "nuxt": "^4.4.6",
+    "sortablejs": "^1.15.7",
+    "vue": "^3.5.34",
+    "vue-router": "^5.0.7",
+    "vuedraggable": "^4.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/sortablejs": "^1.15.9",
+    "tailwindcss": "^4.3.0"
+  }
+}

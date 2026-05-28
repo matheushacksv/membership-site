@@ -1,0 +1,21 @@
+cursos.henriquegoularte.com.br {
+    encode gzip zstd
+
+    request_body {
+        max_size 50MB
+    }
+
+    @backend path /api/* /admin/*
+    handle @backend {
+        reverse_proxy backend:8000
+    }
+
+    handle /static/* {
+        root * /var/www
+        file_server
+    }
+
+    handle {
+        reverse_proxy frontend:3000
+    }
+}

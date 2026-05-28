@@ -1,0 +1,36 @@
+<script setup lang="ts">
+withDefaults(defineProps<{ label?: string; showLabel?: boolean }>(), {
+  label: 'Área de Membros',
+  showLabel: true,
+})
+</script>
+
+<template>
+  <div class="flex items-center gap-3 group cursor-pointer">
+    <svg
+      class="h-8 sm:h-10 w-auto shrink-0"
+      viewBox="200 430 700 250"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <g transform="translate(0,1080) scale(0.1,-0.1)" stroke="none">
+        <path
+          fill="#1d4d28"
+          d="M5417 6161 c-51 -40 -132 -104 -182 -141 -49 -38 -119 -91 -155 -119 -36 -28 -88 -68 -117 -89 -29 -20 -54 -43 -57 -49 -4 -10 260 -13 1302 -13 l1307 0 -85 -81 c-69 -66 -823 -809 -1373 -1352 -60 -59 -107 -110 -105 -112 2 -3 166 -7 364 -10 l360 -6 759 767 c1080 1090 1245 1258 1242 1267 -1 4 -715 9 -1585 10 l-1583 2 -92 -74z"
+        />
+        <path
+          fill="#161b17"
+          d="M3600 5479 c-91 -72 -208 -163 -260 -202 -52 -39 -97 -73 -100 -77 -3 -3 -24 -21 -48 -39 -24 -18 -41 -35 -39 -37 2 -3 636 -4 1408 -4 l1403 0 -39 -42 c-22 -23 -45 -47 -52 -53 -92 -82 -823 -812 -823 -821 0 -10 69 -13 335 -11 l334 2 578 576 c318 316 635 631 706 699 70 68 127 127 127 132 0 4 -757 8 -1682 8 l-1683 0 -165 -131z"
+        />
+        <path
+          fill="#969796"
+          d="M2513 4788 c-120 -95 -234 -185 -253 -199 -21 -16 -31 -30 -26 -38 6 -9 250 -12 1129 -10 617 1 1124 -1 1127 -4 7 -8 -94 -119 -206 -229 -52 -50 -94 -95 -94 -100 0 -4 138 -8 306 -8 l306 0 41 41 c376 367 717 705 717 711 0 5 -636 8 -1414 8 l-1413 0 -220 -172z"
+        />
+      </g>
+    </svg>
+    <span
+      v-if="showLabel"
+      class="hidden sm:inline text-base sm:text-lg font-semibold tracking-tight text-white truncate"
+    >{{ label }}</span>
+  </div>
+</template>
