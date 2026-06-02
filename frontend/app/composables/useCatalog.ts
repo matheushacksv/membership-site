@@ -8,6 +8,9 @@ export interface CourseListItem {
   checkout_link?: string | null
   kiwify_product_id?: string
   access_days?: number | null
+  total_lessons?: number | null
+  completed_lessons?: number | null
+  resume_lesson_id?: number | null
 }
 
 export const useCatalog = () => {

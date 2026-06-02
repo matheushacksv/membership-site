@@ -110,7 +110,7 @@ defineExpose({ load })
       >
       <div
         v-else
-        class="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-black"
+        class="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-white"
       >
         {{ initial }}
       </div>

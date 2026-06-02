@@ -141,7 +141,7 @@ const changePassword = async () => {
           >
           <div
             v-else
-            class="w-24 h-24 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-3xl font-semibold text-black"
+            class="w-24 h-24 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-3xl font-semibold text-white"
           >
             {{ initial }}
           </div>

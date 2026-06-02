@@ -106,7 +106,7 @@ const toggleCourse = (id: number) => {
         <button
           type="submit"
           :disabled="saving || !form.email.trim()"
-          class="inline-flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-black font-bold uppercase tracking-wider text-xs rounded-lg"
+          class="inline-flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white font-bold uppercase tracking-wider text-xs rounded-lg"
         >
           <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin" />
           Criar aluno

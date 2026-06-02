@@ -1,9 +1,28 @@
 @import "tailwindcss";
 
+/* Accent: verde de marca ancorado em #24522b (orange-500).
+   Tons claros (300/400) p/ texto e hover legiveis sobre fundo quase preto.
+   Sobrescreve a paleta orange e amber do Tailwind. */
 @theme {
   --color-bg: #050505;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-serif: 'Instrument Serif', serif;
+
+  --color-orange-50: #edfdf3;
+  --color-orange-100: #d3f9e1;
+  --color-orange-200: #a9f1c6;
+  --color-orange-300: #74e6a4;
+  --color-orange-400: #4dd88a;
+  --color-orange-500: #2ecc71;
+  --color-orange-600: #20a85b;
+  --color-orange-700: #1b8349;
+  --color-orange-800: #19663b;
+  --color-orange-900: #155331;
+  --color-orange-950: #072e1b;
+
+  --color-amber-300: #9bf2bd;
+  --color-amber-400: #6ee6a0;
+  --color-amber-500: #4dd88a;
 }
 
 html, body {
@@ -19,7 +38,7 @@ body {
 }
 
 ::selection {
-  background: rgba(249, 115, 22, 0.3);
+  background: rgba(77, 216, 138, 0.35);
 }
 
 ::-webkit-scrollbar {
@@ -53,8 +72,8 @@ body {
   justify-content: center;
   overflow: hidden;
   transition: all 0.25s ease;
-  background: radial-gradient(65.28% 65.28% at 50% 100%, rgba(251, 191, 36, 0.8) 0%, rgba(251, 191, 36, 0) 100%),
-              linear-gradient(0deg, #ea580c, #ea580c);
+  background: radial-gradient(65.28% 65.28% at 50% 100%, rgba(116, 230, 164, 0.9) 0%, rgba(116, 230, 164, 0) 100%),
+              linear-gradient(0deg, #2ecc71, #2ecc71);
   border-radius: 9999px;
   border: none;
   padding: 10px 24px;
@@ -80,15 +99,15 @@ body {
   content: "";
   position: absolute;
   inset: 2px;
-  background: radial-gradient(65.28% 65.28% at 50% 100%, rgba(251, 191, 36, 0.8) 0%, rgba(251, 191, 36, 0) 100%),
-              linear-gradient(0deg, #ea580c, #ea580c);
+  background: radial-gradient(65.28% 65.28% at 50% 100%, rgba(116, 230, 164, 0.9) 0%, rgba(116, 230, 164, 0) 100%),
+              linear-gradient(0deg, #2ecc71, #2ecc71);
   border-radius: 9999px;
   transition: all 0.5s ease-in-out;
   z-index: 0;
 }
 
 .button-custom:hover:not(:disabled) {
-  box-shadow: 0 0 50px 10px rgba(249, 115, 22, 0.45);
+  box-shadow: 0 0 50px 10px rgba(46, 204, 113, 0.5);
 }
 
 .inner {
@@ -157,4 +176,34 @@ body {
 
 .animate-fade-slide {
   animation: fadeSlideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* View transitions (Nuxt) — fade curto entre páginas/aulas */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.2s;
+  animation-timing-function: ease;
+}
+
+::view-transition-old(root) {
+  animation-name: vt-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: vt-fade-in;
+}
+
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
 }

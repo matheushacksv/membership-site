@@ -25,7 +25,7 @@ const isActive = (match: string) => route.path.startsWith(match)
     <!-- Logo -->
     <div class="px-6 py-6 border-b border-white/5">
       <NuxtLink to="/admin" class="flex items-center gap-2">
-        <AppLogo />
+        <AppLogo :show-label="false" />
       </NuxtLink>
       <span class="block text-[10px] font-bold tracking-widest uppercase text-orange-400/80 mt-2">
         Painel Admin
@@ -71,7 +71,7 @@ const isActive = (match: string) => route.path.startsWith(match)
         >
         <div
           v-else
-          class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-black"
+          class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-xs font-semibold text-white"
         >
           {{ initial }}
         </div>

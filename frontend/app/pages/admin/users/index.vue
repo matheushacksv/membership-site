@@ -77,7 +77,7 @@ const reloadRow = (userId: number) => {
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-400 text-black text-xs font-bold uppercase tracking-wider rounded-lg"
+          class="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold uppercase tracking-wider rounded-lg"
           @click="showCreate = true"
         >
           <Plus class="w-3.5 h-3.5" />

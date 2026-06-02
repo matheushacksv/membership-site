@@ -23,7 +23,7 @@ const emit = defineEmits<{ toggleComplete: [] }>()
           'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50',
           lesson.completed
             ? 'bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20'
-            : 'bg-orange-500 hover:bg-orange-400 text-black',
+            : 'bg-orange-500 hover:bg-orange-400 text-white',
         ]"
         @click="emit('toggleComplete')"
       >

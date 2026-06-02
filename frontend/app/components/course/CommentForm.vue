@@ -52,7 +52,7 @@ const submit = async () => {
       <button
         type="submit"
         :disabled="submitting || !body.trim()"
-        class="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-black font-bold uppercase tracking-wider text-xs rounded-md"
+        class="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white font-bold uppercase tracking-wider text-xs rounded-md"
       >
         <Loader2 v-if="submitting" class="w-3.5 h-3.5 animate-spin" />
         {{ submitLabel || 'Comentar' }}

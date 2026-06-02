@@ -118,7 +118,7 @@ const previewCount = computed(() =>
       <div class="flex justify-end pt-3 border-t border-white/5">
         <button
           type="button"
-          class="px-5 py-2 bg-orange-500 hover:bg-orange-400 text-black font-bold uppercase tracking-wider text-xs rounded-lg"
+          class="px-5 py-2 bg-orange-500 hover:bg-orange-400 text-white font-bold uppercase tracking-wider text-xs rounded-lg"
           @click="emit('close')"
         >
           Fechar
@@ -133,7 +133,7 @@ const previewCount = computed(() =>
           type="button"
           :class="[
             'inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors',
-            tab === 'list' ? 'bg-orange-500 text-black' : 'text-neutral-400 hover:text-white',
+            tab === 'list' ? 'bg-orange-500 text-white' : 'text-neutral-400 hover:text-white',
           ]"
           @click="tab = 'list'"
         >
@@ -144,7 +144,7 @@ const previewCount = computed(() =>
           type="button"
           :class="[
             'inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors',
-            tab === 'csv' ? 'bg-orange-500 text-black' : 'text-neutral-400 hover:text-white',
+            tab === 'csv' ? 'bg-orange-500 text-white' : 'text-neutral-400 hover:text-white',
           ]"
           @click="tab = 'csv'"
         >
@@ -216,7 +216,7 @@ const previewCount = computed(() =>
         <button
           type="submit"
           :disabled="saving || !previewCount"
-          class="inline-flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-black font-bold uppercase tracking-wider text-xs rounded-lg"
+          class="inline-flex items-center gap-2 px-5 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white font-bold uppercase tracking-wider text-xs rounded-lg"
         >
           <Loader2 v-if="saving" class="w-3.5 h-3.5 animate-spin" />
           Importar

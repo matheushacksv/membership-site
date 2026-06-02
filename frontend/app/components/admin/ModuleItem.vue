@@ -175,7 +175,7 @@ defineExpose({ loadLessons })
           <button
             type="button"
             :disabled="creatingLesson"
-            class="px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-black text-xs font-bold uppercase rounded-md disabled:opacity-50"
+            class="px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold uppercase rounded-md disabled:opacity-50"
             @click="createLesson"
           >
             <Loader2 v-if="creatingLesson" class="w-3 h-3 animate-spin inline" />

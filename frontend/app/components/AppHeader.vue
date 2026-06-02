@@ -75,7 +75,7 @@ const handleLogout = () => {
             >
             <div
               v-else
-              class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-sm font-semibold text-black"
+              class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-sm font-semibold text-white"
             >
               {{ initial }}
             </div>

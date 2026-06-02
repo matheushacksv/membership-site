@@ -66,7 +66,7 @@ const onRemove = () => {
     >
     <div
       v-else
-      class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-[10px] font-semibold text-black shrink-0"
+      class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-[10px] font-semibold text-white shrink-0"
     >
       {{ initial }}
     </div>

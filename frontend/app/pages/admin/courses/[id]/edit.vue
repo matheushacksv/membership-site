@@ -409,7 +409,7 @@ const savedLabel = computed(() => {
             <button
               type="button"
               :disabled="creatingModule"
-              class="px-4 py-2.5 bg-orange-500 hover:bg-orange-400 text-black text-xs font-bold uppercase rounded-lg disabled:opacity-50"
+              class="px-4 py-2.5 bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold uppercase rounded-lg disabled:opacity-50"
               @click="createModule"
             >
               <Loader2 v-if="creatingModule" class="w-3.5 h-3.5 animate-spin inline" />
