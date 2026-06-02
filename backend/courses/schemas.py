@@ -17,6 +17,9 @@ class CourseListOut(Schema):
     is_active: bool
     sales_page: str | None = None
     checkout_link: str | None = None
+    total_lessons: int | None = None
+    completed_lessons: int | None = None
+    resume_lesson_id: int | None = None
 
 
 class LessonAttachmentOut(Schema):
@@ -45,6 +48,7 @@ class LessonOut(Schema):
     duration_seconds: int
     content: str | None
     order: int
+    is_published: bool = False
     attachments: list[LessonAttachmentOut] = []
     completed: bool = False
 
@@ -173,6 +177,7 @@ class CourseUpdateIn(Schema):
     kiwify_product_id: str | None = None
     access_days: int | None = None
 
+
 class CommentAuthorOut(Schema):
     id: int
     name: str | None
@@ -183,6 +188,7 @@ class CommentAuthorOut(Schema):
     def resolve_avatar(obj) -> str | None:
         return obj.avatar.url if obj.avatar else None
 
+
 class CommentOut(Schema):
     id: int
     body: str
@@ -191,10 +197,11 @@ class CommentOut(Schema):
     author: CommentAuthorOut
     replies: list['CommentOut'] = []
 
+
 class CommentIn(Schema):
     body: str = Field(min_length=1, max_length=2000)
     parent_id: int | None = None
 
+
 class CommentUpdateIn(Schema):
     body: str = Field(min_length=1, max_length=2000)
-

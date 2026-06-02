@@ -126,8 +126,7 @@ def upsert_progress(request, lesson_id: int, data: ProgressIn):
 
     progress, _ = LessonProgress.objects.get_or_create(user=request.auth, lesson=lesson)
     progress.watch_seconds = max(progress.watch_seconds, data.watch_seconds)
-    if data.completed and progress.completed_at is None:
-        progress.completed_at = now
+    progress.completed_at = now if data.completed else None
     progress.save()
     return Status(200, progress)
 

@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 from django.db import models, transaction
-from django.db.models import Exists, F, OuterRef, Prefetch
+from django.db.models import Count, Exists, F, OuterRef, Prefetch, Subquery
 from django.db.models.query_utils import Q
 from django.db.utils import IntegrityError
 from django.shortcuts import get_object_or_404
@@ -66,6 +66,17 @@ def list_my_courses(request):
     user = request.auth
     now = timezone.now()
 
+    resume_sq = (
+        LessonProgress.objects.filter(
+            user=user,
+            lesson__module__course=OuterRef('pk'),
+            lesson__is_published=True,
+            completed_at__isnull=True,
+        )
+        .order_by('-last_watched_at')
+        .values('lesson_id')[:1]
+    )
+
     return (
         Course.objects.filter(
             is_active=True,
@@ -74,6 +85,23 @@ def list_my_courses(request):
         )
         .filter(
             Q(enrollments__expires_at__isnull=True) | Q(enrollments__expires_at__gt=now)
+        )
+        .annotate(
+            total_lessons=Count(
+                'modules__lessons',
+                filter=Q(modules__lessons__is_published=True),
+                distinct=True,
+            ),
+            completed_lessons=Count(
+                'modules__lessons',
+                filter=Q(
+                    modules__lessons__is_published=True,
+                    modules__lessons__progress__user=user,
+                    modules__lessons__progress__completed_at__isnull=False,
+                ),
+                distinct=True,
+            ),
+            resume_lesson_id=Subquery(resume_sq),
         )
         .distinct()
         .order_by('name')

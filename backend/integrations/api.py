@@ -25,6 +25,7 @@ def kiwify_config(request):
     staff_required(request)
     return Status(200, {'token': settings.KIWIFY_WEBHOOK_TOKEN or ''})
 
+
 APPROVED = {'order_approved'}
 REVOKE = {'order_refunded', 'chargeback'}
 
