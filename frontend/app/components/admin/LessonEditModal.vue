@@ -167,11 +167,7 @@ const save = async () => {
 
       <div>
         <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Conteúdo (texto)</label>
-        <textarea
-          v-model="form.content"
-          rows="6"
-          class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none resize-y"
-        />
+        <AdminRichTextEditor v-model="form.content" />
       </div>
 
       <div class="pt-2 border-t border-white/5">

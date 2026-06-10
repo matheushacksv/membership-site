@@ -159,6 +159,8 @@ class CourseOut(Schema):
     image: str | None = None
     category: str
     is_active: bool = False
+    sales_page: str | None = None
+    checkout_link: str | None = None
     kiwify_product_id: str = ''
     access_days: int | None = None
 
