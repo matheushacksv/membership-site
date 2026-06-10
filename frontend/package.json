@@ -10,6 +10,12 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.20",
+    "@tiptap/extension-link": "^3.26.0",
+    "@tiptap/pm": "^3.26.0",
+    "@tiptap/starter-kit": "^3.26.0",
+    "@tiptap/vue-3": "^3.26.0",
+    "isomorphic-dompurify": "^3.16.0",
     "lucide-vue-next": "^1.0.0",
     "nuxt": "^4.4.6",
     "sortablejs": "^1.15.7",
