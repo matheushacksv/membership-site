@@ -22,9 +22,9 @@ Plataforma de área de membros para cursos online. Suporta catálogo, matrícula
 │  Caddy   │  :80/:443 (TLS auto via Let's Encrypt)
 └────┬─────┘
      │
-     ├── /api/*,/admin/*  →  backend  (Django + gunicorn)
-     ├── /static/*        →  volume (collectstatic)
-     └── /*               →  frontend (Nuxt SSR)
+     ├── /api/*,/dj-admin/*  →  backend  (Django + gunicorn)
+     ├── /static/*           →  volume (collectstatic)
+     └── /*                  →  frontend (Nuxt SSR, inclui SPA admin em /admin/*)
 
 backend  ─→ db (Postgres)
          ─→ redis (broker django-q)

@@ -5,7 +5,7 @@ cursos.henriquegoularte.com.br {
         max_size 50MB
     }
 
-    @backend path /api/* /admin/*
+    @backend path /api/* /dj-admin/*
     handle @backend {
         reverse_proxy backend:8000
     }

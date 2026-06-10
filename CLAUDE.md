@@ -57,7 +57,7 @@ Single Django project `core/` with feature apps as siblings: `accounts`, `course
 - `core/api.py` instantiates a single `NinjaAPI(auth=JWTAuth())` — **every route is JWT-authenticated by default**. Public endpoints (register/login/refresh, webhooks, password reset) must opt out with `auth=None` on the decorator.
 - Per-app routers live in `<app>/api.py` and are mounted via `api.add_router("/<prefix>", router)` in `core/api.py`. Currently mounted: `/auth`, `/catalog`, `/admin`, `/enrollments`, `/integrations`.
 - To add a new app to the API, create `<app>/api.py` with a `Router(tags=[...])` and register it.
-- `core/urls.py` only exposes `/admin/` and `/api/` — no DRF urls, no app-level `urls.py`.
+- `core/urls.py` only exposes `/dj-admin/` (Django admin — moved off `/admin/` so the Nuxt SPA admin can own `/admin/*` behind Caddy) and `/api/` — no DRF urls, no app-level `urls.py`.
 - Pydantic-style request/response shapes live in `<app>/schemas.py`. Shared error shape: `core.utils.errors.Error`.
 - Staff-only endpoints call `core.utils.permissions.staff_required(request)` which raises `HttpError(403)`.
 
