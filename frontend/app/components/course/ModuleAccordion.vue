@@ -24,17 +24,17 @@ const completedCount = computed(() =>
   <div class="border-b border-white/5 last:border-b-0">
     <button
       type="button"
-      class="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03]"
+      class="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03]"
       @click="expanded = !expanded"
     >
       <ChevronDown
-        class="w-4 h-4 text-neutral-500 shrink-0 transition-transform"
+        class="w-4 h-4 mt-0.5 text-neutral-500 shrink-0 transition-transform"
         :class="{ '-rotate-90': !expanded }"
       />
-      <span class="flex-1 text-sm font-medium text-white truncate">
+      <span class="flex-1 text-sm font-medium text-white break-words" :title="module.name">
         {{ module.name }}
       </span>
-      <span class="text-[10px] text-neutral-500 shrink-0">
+      <span class="text-[10px] text-neutral-500 shrink-0 mt-0.5">
         {{ completedCount }}/{{ module.lessons.length }}
       </span>
     </button>

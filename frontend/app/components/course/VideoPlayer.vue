@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { Video } from 'lucide-vue-next'
-
 const props = defineProps<{
   provider: string | null
   videoId: string | null
@@ -151,13 +149,5 @@ watch(() => props.videoId, () => {
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
       allowfullscreen
     />
-  </div>
-
-  <div
-    v-else
-    class="w-full aspect-video bg-white/[0.02] border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center text-neutral-600"
-  >
-    <Video class="w-10 h-10 mb-2" />
-    <p class="text-xs">Aula sem vídeo</p>
   </div>
 </template>
