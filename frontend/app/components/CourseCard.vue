@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, resolveComponent } from 'vue'
-import { ArrowRight, ExternalLink, PlayCircle } from 'lucide-vue-next'
+import { ArrowRight, BookOpen, PlayCircle, ShoppingCart } from 'lucide-vue-next'
 import type { CourseListItem } from '~/composables/useCatalog'
 
 const props = defineProps<{
@@ -20,8 +20,9 @@ const categoryLabel: Record<string, string> = {
   development: 'Desenvolvimento',
 }
 
-const externalUrl = computed(() => props.course.sales_page || props.course.checkout_link || '#')
 const isAvailable = computed(() => props.variant === 'available')
+const hasSales = computed(() => !!props.course.sales_page)
+const hasCheckout = computed(() => !!props.course.checkout_link)
 
 const total = computed(() => props.course.total_lessons ?? 0)
 const completed = computed(() => props.course.completed_lessons ?? 0)
@@ -43,12 +44,8 @@ const ctaLabel = computed(() => {
 
 <template>
   <component
-    :is="isAvailable ? 'a' : NuxtLink"
-    v-bind="
-      isAvailable
-        ? { href: externalUrl, target: '_blank', rel: 'noopener noreferrer' }
-        : { to: internalUrl }
-    "
+    :is="isAvailable ? 'div' : NuxtLink"
+    v-bind="isAvailable ? {} : { to: internalUrl }"
     class="group relative block bg-white/5 border border-white/10 backdrop-blur-md rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-orange-500/30 hover:shadow-[0_0_40px_-10px_rgba(46,204,113,0.5)]"
     :style="{
       '--border-gradient': 'linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0))',
@@ -106,15 +103,41 @@ const ctaLabel = computed(() => {
         </div>
       </div>
 
-      <div class="flex items-center justify-between pt-2 border-t border-white/5">
+      <!-- Available: 2 botões (Saiba mais + Comprar) -->
+      <div v-if="isAvailable" class="flex items-center gap-2 pt-2 border-t border-white/5">
+        <a
+          v-if="hasSales"
+          :href="course.sales_page!"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 text-neutral-300 hover:bg-white/10 hover:border-white/20 hover:text-white transition-all"
+          @click.stop
+        >
+          <BookOpen class="w-3.5 h-3.5" />
+          Saiba mais
+        </a>
+        <a
+          v-if="hasCheckout"
+          :href="course.checkout_link!"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-orange-500 text-white hover:bg-orange-400 transition-all"
+          @click.stop
+        >
+          <ShoppingCart class="w-3.5 h-3.5" />
+          Comprar
+        </a>
+      </div>
+
+      <!-- Enrolled: CTA inteiro do card -->
+      <div v-else class="flex items-center justify-between pt-2 border-t border-white/5">
         <span class="text-xs font-medium tracking-wider uppercase text-neutral-500">
           {{ ctaLabel }}
         </span>
         <span
           class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/5 border border-white/10 text-neutral-400 group-hover:bg-orange-500/20 group-hover:border-orange-500/40 group-hover:text-orange-300 transition-all"
         >
-          <ExternalLink v-if="isAvailable" class="w-3.5 h-3.5" />
-          <ArrowRight v-else class="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight class="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>
       </div>
     </div>
