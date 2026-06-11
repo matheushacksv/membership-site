@@ -27,3 +27,6 @@ jobs:
             docker compose up -d --build
             docker compose exec -T backend python manage.py migrate --noinput
             docker compose exec -T backend python manage.py collectstatic --noinput || true
+            # Caddyfile e bind-mount: mudar o arquivo nao recria o container nem
+            # recarrega a config em memoria. Reload explicito (zero-downtime).
+            docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile || docker compose restart caddy
