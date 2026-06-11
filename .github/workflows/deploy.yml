@@ -27,9 +27,4 @@ jobs:
             docker compose up -d --build
             docker compose exec -T backend python manage.py migrate --noinput
             docker compose exec -T backend python manage.py collectstatic --noinput || true
-            # Caddyfile e bind-mount de arquivo unico: o mount prende o inode, e
-            # 'git pull' reescreve o arquivo via rename atomico (inode novo). O
-            # container caddy continua vendo o inode antigo, entao 'reload' e
-            # 'restart' leem a config velha. So recriar o container re-resolve o
-            # bind para o inode atual. --no-deps evita recriar backend/frontend.
             docker compose up -d --no-deps --force-recreate caddy
