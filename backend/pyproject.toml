@@ -22,5 +22,8 @@ dependencies = [
     "redis>=7.4.0",
 ]
 
+[tool.ruff]
+line-length = 150
+
 [tool.ruff.format]
 quote-style = "single"
