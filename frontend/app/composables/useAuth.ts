@@ -21,7 +21,7 @@ export const useAuth = () => {
     maxAge: 60 * 60 * 24 * 7,
   })
 
-  const isAuthenticated = computed(() => !!access.value)
+  const isAuthenticated = computed(() => !!access.value || !!refresh.value)
 
   const login = async (email: string, password: string, redirect = '/') => {
     const data = await api<TokenPair>('/auth/login', {
