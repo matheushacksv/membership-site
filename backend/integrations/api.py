@@ -16,6 +16,7 @@ from core.utils.errors import Error
 from core.utils.permissions import staff_required
 from courses.models import Course
 from enrollments.models import CourseEnrollment
+from integrations.schemas import ExternalEnrollIn, ExternalEnrollOut
 
 router = Router(tags=['Integrations'])
 
@@ -32,45 +33,57 @@ REVOKE = {'order_refunded', 'chargeback'}
 # Helpers
 
 
+def _get_or_create_user(email: str, name: str, phone: str):
+    user, created = User.objects.get_or_create(email=email, defaults={'name': name or '', 'phone': phone or ''})
+    if created:
+        user.set_password(secrets.token_urlsafe(32))
+        user.save()
+    return user, created
+
+
+def _enroll(user: User, course: Course, source: str, order_id: str = '') -> None:
+    expires_at = None
+    if course.access_days:
+        expires_at = timezone.now() + timedelta(days=course.access_days)
+
+    enrollment, e_created = CourseEnrollment.objects.get_or_create(
+        user=user,
+        course=course,
+        defaults={
+            'is_active': True,
+            'expires_at': expires_at,
+            'source': source,
+            'external_order_id': order_id,
+        },
+    )
+    if not e_created:
+        enrollment.is_active = True
+        if expires_at:
+            enrollment.expires_at = expires_at
+        enrollment.source = enrollment.source or source
+        enrollment.external_order_id = order_id or enrollment.external_order_id
+        enrollment.save()
+
+
+def _send_welcome_with_reset(user: User) -> None:
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
+    async_task('accounts.tasks.send_welcome_email_with_reset', user.pk, reset_url)
+
+
 def _handle_approved(email: str, name: str, phone: str, course: Course, order_id: str):
     if not email:
         return Status(200, {'detail': 'ignored: no email'})
 
     with transaction.atomic():
-        user, created = User.objects.get_or_create(
-            email=email, defaults={'name': name or '', 'phone': phone or ''}
-        )
-        if created:
-            user.set_password(secrets.token_urlsafe(32))
-            user.save()
-        expires_at = None
-        if course.access_days:
-            expires_at = timezone.now() + timedelta(days=course.access_days)
+        user, created = _get_or_create_user(email, name, phone)
+        _enroll(user, course, source='kiwify', order_id=order_id)
 
-        enrollment, e_created = CourseEnrollment.objects.get_or_create(
-            user=user,
-            course=course,
-            defaults={
-                'is_active': True,
-                'expires_at': expires_at,
-                'source': 'kiwify',
-                'external_order_id': order_id,
-            },
-        )
-        if not e_created:
-            enrollment.is_active = True
-            if expires_at:
-                enrollment.expires_at = expires_at
-            enrollment.source = enrollment.source or 'kiwify'
-            enrollment.external_order_id = order_id or enrollment.external_order_id
-            enrollment.save()
     if created:
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
-        reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
-        async_task('accounts.tasks.send_welcome_email_with_reset', user.pk, reset_url)
+        _send_welcome_with_reset(user)
     else:
-        async_task('accounts.tasks.send_welcome_email_with_reset', user.pk)
+        async_task('accounts.tasks.send_welcome_email', user.pk)
 
     return Status(200, {'detail': 'enrolled'})
 
@@ -125,3 +138,36 @@ def kiwify_webhook(request, signature: str = ''):
     if event in REVOKE:
         return _handle_revoke(email, course, order_id)
     return Status(200, {'detail': f'ignored event: {event}'})
+
+
+@router.post('/external/enroll', response={200: ExternalEnrollOut, 400: Error, 401: Error}, auth=None)
+def external_enroll(request, data: ExternalEnrollIn):
+    expected = settings.WEBHOOK_TOKEN
+    if not expected or request.headers.get('X-Token', '') != expected:
+        return Status(401, Error(detail='Invalid token'))
+
+    email = data.email.strip().lower()
+    if not email:
+        return Status(400, Error(detail='email required'))
+
+    courses = list(Course.objects.filter(id__in=data.course_ids))
+    found = {c.pk for c in courses}
+    skipped = [cid for cid in data.course_ids if cid not in found]
+
+    with transaction.atomic():
+        user, created = _get_or_create_user(email, data.name, data.phone)
+        for course in courses:
+            _enroll(user, course, source='crm')
+
+    if created:
+        _send_welcome_with_reset(user)
+
+    return Status(
+        200,
+        ExternalEnrollOut(
+            detail='ok',
+            user_created=created,
+            enrolled_course_ids=sorted(found),
+            skipped_course_ids=skipped,
+        ),
+    )

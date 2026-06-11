@@ -45,9 +45,7 @@ def _assert_enrolled_or_403(request, lesson: Lesson):
     now = timezone.now()
 
     enrolled = (
-        CourseEnrollment.objects.filter(
-            user=request.auth, course_id=lesson.module.course_id, is_active=True
-        )
+        CourseEnrollment.objects.filter(user=request.auth, course_id=lesson.module.course_id, is_active=True)
         .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
         .exists()
     )
@@ -83,9 +81,7 @@ def list_my_courses(request):
             enrollments__user=user,
             enrollments__is_active=True,
         )
-        .filter(
-            Q(enrollments__expires_at__isnull=True) | Q(enrollments__expires_at__gt=now)
-        )
+        .filter(Q(enrollments__expires_at__isnull=True) | Q(enrollments__expires_at__gt=now))
         .annotate(
             total_lessons=Count(
                 'modules__lessons',
@@ -113,23 +109,17 @@ def list_available_courses(request, category: str | None = None):
     user = request.auth
     now = timezone.now()
 
-    enrolled = CourseEnrollment.objects.filter(
-        user=user, is_active=True, course=OuterRef('pk')
-    ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
-
-    qs = (
-        Course.objects.filter(is_active=True)
-        .exclude(Exists(enrolled))
-        .filter(Q(sales_page__isnull=False) | Q(checkout_link__isnull=False))
+    enrolled = CourseEnrollment.objects.filter(user=user, is_active=True, course=OuterRef('pk')).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
     )
+
+    qs = Course.objects.filter(is_active=True).exclude(Exists(enrolled)).filter(Q(sales_page__isnull=False) | Q(checkout_link__isnull=False))
     if category:
         qs = qs.filter(category=category)
     return qs.order_by('name')
 
 
-@catalog_router.get(
-    '/courses/{course_id}', response={200: CourseDetailOut, 403: Error, 404: Error}
-)
+@catalog_router.get('/courses/{course_id}', response={200: CourseDetailOut, 403: Error, 404: Error})
 def course_detail(request, course_id: int):
     user = request.auth
 
@@ -152,9 +142,7 @@ def course_detail(request, course_id: int):
                 .prefetch_related(
                     Prefetch(
                         'lessons',
-                        queryset=Lesson.objects.filter(is_published=True)
-                        .order_by('order')
-                        .prefetch_related('attachments'),
+                        queryset=Lesson.objects.filter(is_published=True).order_by('order').prefetch_related('attachments'),
                     )
                 ),
             )
@@ -177,10 +165,7 @@ def course_detail(request, course_id: int):
     return Status(200, course)
 
 
-@catalog_router.get(
-    '/lessons/{lesson_id}/comments',
-    response={200: list[CommentOut], 403: Error, 404: Error},
-)
+@catalog_router.get('/lessons/{lesson_id}/comments', response={200: list[CommentOut], 403: Error, 404: Error})
 def list_comments(request, lesson_id: int):
     lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
     if denied := _assert_enrolled_or_403(request, lesson):
@@ -194,10 +179,7 @@ def list_comments(request, lesson_id: int):
     )
 
 
-@catalog_router.post(
-    '/lessons/{lesson_id}/comments',
-    response={201: CommentOut, 400: Error, 403: Error, 404: Error},
-)
+@catalog_router.post('/lessons/{lesson_id}/comments', response={201: CommentOut, 400: Error, 403: Error, 404: Error})
 def create_comment(request, lesson_id: int, data: CommentIn):
     lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
     if denied := _assert_enrolled_or_403(request, lesson):
@@ -210,15 +192,11 @@ def create_comment(request, lesson_id: int, data: CommentIn):
             return Status(400, Error(detail='Parent from different lesson'))
         if getattr(parent, 'parent_id', None) is not None:
             return Status(400, Error(detail='Cannot reply to a reply'))
-    comment = LessonComment.objects.create(
-        lesson=lesson, author=request.auth, parent=parent, body=data.body
-    )
+    comment = LessonComment.objects.create(lesson=lesson, author=request.auth, parent=parent, body=data.body)
     return Status(201, comment)
 
 
-@catalog_router.patch(
-    '/comments/{comment_id}', response={200: CommentOut, 403: Error, 404: Error}
-)
+@catalog_router.patch('/comments/{comment_id}', response={200: CommentOut, 403: Error, 404: Error})
 def update_comment(request, comment_id: int, data: CommentUpdateIn):
     comment = get_object_or_404(LessonComment, id=comment_id)
     if getattr(comment, 'author_id') != request.auth.id:
@@ -229,9 +207,7 @@ def update_comment(request, comment_id: int, data: CommentUpdateIn):
     return Status(200, comment)
 
 
-@catalog_router.delete(
-    '/comments/{comment_id}', response={204: None, 403: Error, 404: Error}
-)
+@catalog_router.delete('/comments/{comment_id}', response={204: None, 403: Error, 404: Error})
 def delete_comment(request, comment_id: int):
     comment = get_object_or_404(LessonComment, id=comment_id)
     if getattr(comment, 'author_id') != request.auth.id and not request.auth.is_staff:
@@ -270,9 +246,7 @@ def create_course(request, data: CourseIn):
     return Status(201, course)
 
 
-@admin_router.put(
-    '/courses/{course_id}', response={200: CourseOut, 403: Error, 404: Error}
-)
+@admin_router.put('/courses/{course_id}', response={200: CourseOut, 403: Error, 404: Error})
 def update_course(request, course_id: int, data: CourseUpdateIn):
     staff_required(request)
 
@@ -286,9 +260,7 @@ def update_course(request, course_id: int, data: CourseUpdateIn):
     return Status(200, course)
 
 
-@admin_router.delete(
-    '/courses/{course_id}', response={204: None, 403: Error, 404: Error}
-)
+@admin_router.delete('/courses/{course_id}', response={204: None, 403: Error, 404: Error})
 def delete_course(request, course_id: int):
     staff_required(request)
 
@@ -299,9 +271,7 @@ def delete_course(request, course_id: int):
     return Status(204, None)
 
 
-@admin_router.post(
-    '/courses/{course_id}/image', response={200: CourseOut, 400: Error, 404: Error}
-)
+@admin_router.post('/courses/{course_id}/image', response={200: CourseOut, 400: Error, 404: Error})
 def upload_course_image(request, course_id: int, file: UploadedFile):
     staff_required(request)
     course = get_object_or_404(Course, id=course_id)
@@ -321,18 +291,14 @@ def upload_course_image(request, course_id: int, file: UploadedFile):
     return Status(200, course)
 
 
-@admin_router.post(
-    '/modules', response={201: ModuleOut, 403: Error, 404: Error, 409: Error}
-)
+@admin_router.post('/modules', response={201: ModuleOut, 403: Error, 404: Error, 409: Error})
 def create_module(request, data: ModuleIn):
     staff_required(request)
 
     if not Course.objects.filter(id=data.course_id).exists():
         return Status(404, Error(detail='Course not found'))
 
-    current_max = Module.objects.filter(course_id=data.course_id).aggregate(
-        models.Max('order')
-    )['order__max']
+    current_max = Module.objects.filter(course_id=data.course_id).aggregate(models.Max('order'))['order__max']
     next_order = 0 if current_max is None else current_max + 1
 
     try:
@@ -359,10 +325,7 @@ def list_modules(request, course_id: int):
     return Module.objects.filter(course_id=course_id).order_by('order')
 
 
-@admin_router.put(
-    '/modules/{module_id}',
-    response={200: ModuleOut, 403: Error, 404: Error, 409: Error},
-)
+@admin_router.put('/modules/{module_id}', response={200: ModuleOut, 403: Error, 404: Error, 409: Error})
 def update_module(request, module_id: int, data: ModuleUpdateIn):
     staff_required(request)
 
@@ -378,9 +341,7 @@ def update_module(request, module_id: int, data: ModuleUpdateIn):
     return Status(200, module)
 
 
-@admin_router.delete(
-    '/modules/{module_id}', response={204: None, 403: Error, 404: Error}
-)
+@admin_router.delete('/modules/{module_id}', response={204: None, 403: Error, 404: Error})
 def delete_module(request, module_id: int):
     staff_required(request)
     module = get_object_or_404(Module, id=module_id)
@@ -388,10 +349,7 @@ def delete_module(request, module_id: int):
     return Status(204, None)
 
 
-@admin_router.patch(
-    '/courses/{course_id}/modules/reorder',
-    response={204: None, 403: Error, 404: Error},
-)
+@admin_router.patch('/courses/{course_id}/modules/reorder', response={204: None, 403: Error, 404: Error})
 def reorder_modules(request, course_id: int, order: list[int]):
     staff_required(request)
 
@@ -401,25 +359,19 @@ def reorder_modules(request, course_id: int, order: list[int]):
     with transaction.atomic():
         Module.objects.filter(course_id=course_id).update(order=-1 * (F('order') + 1))
         for new_order, module_id in enumerate(order):
-            Module.objects.filter(id=module_id, course_id=course_id).update(
-                order=new_order
-            )
+            Module.objects.filter(id=module_id, course_id=course_id).update(order=new_order)
 
     return Status(204, None)
 
 
-@admin_router.post(
-    '/lessons', response={201: LessonOut, 403: Error, 404: Error, 409: Error}
-)
+@admin_router.post('/lessons', response={201: LessonOut, 403: Error, 404: Error, 409: Error})
 def create_lesson(request, data: LessonIn):
     staff_required(request)
 
     if not Module.objects.filter(id=data.module_id).exists():
         return Status(404, Error(detail='Module does not exist'))
 
-    current_max = Lesson.objects.filter(module_id=data.module_id).aggregate(
-        models.Max('order')
-    )['order__max']
+    current_max = Lesson.objects.filter(module_id=data.module_id).aggregate(models.Max('order'))['order__max']
     next_order = 0 if current_max is None else current_max + 1
 
     try:
@@ -451,10 +403,7 @@ def list_lessons(request, module_id: int):
     return Lesson.objects.filter(module_id=module_id).order_by('order')
 
 
-@admin_router.put(
-    '/lessons/{lesson_id}',
-    response={200: LessonOut, 403: Error, 404: Error, 409: Error},
-)
+@admin_router.put('/lessons/{lesson_id}', response={200: LessonOut, 403: Error, 404: Error, 409: Error})
 def update_lesson(request, lesson_id: int, data: LessonUpdateIn):
     staff_required(request)
 
@@ -473,9 +422,7 @@ def update_lesson(request, lesson_id: int, data: LessonUpdateIn):
     return Status(200, lesson)
 
 
-@admin_router.delete(
-    '/lessons/{lesson_id}', response={204: None, 403: Error, 404: Error}
-)
+@admin_router.delete('/lessons/{lesson_id}', response={204: None, 403: Error, 404: Error})
 def delete_lesson(request, lesson_id: int):
     staff_required(request)
 
@@ -484,9 +431,7 @@ def delete_lesson(request, lesson_id: int):
     return Status(204, None)
 
 
-@admin_router.patch(
-    '/modules/{module_id}/lessons/reorder', response={204: None, 403: Error, 404: Error}
-)
+@admin_router.patch('/modules/{module_id}/lessons/reorder', response={204: None, 403: Error, 404: Error})
 def reorder_lessons(request, module_id: int, order: list[int]):
     staff_required(request)
 
@@ -496,15 +441,11 @@ def reorder_lessons(request, module_id: int, order: list[int]):
     with transaction.atomic():
         Lesson.objects.filter(module_id=module_id).update(order=-1 * (F('order') + 1))
         for new_order, lesson_id in enumerate(order):
-            Lesson.objects.filter(id=lesson_id, module_id=module_id).update(
-                order=new_order
-            )
+            Lesson.objects.filter(id=lesson_id, module_id=module_id).update(order=new_order)
     return Status(204, None)
 
 
-@admin_router.post(
-    '/attachments', response={201: LessonAttachmentOut, 403: Error, 404: Error}
-)
+@admin_router.post('/attachments', response={201: LessonAttachmentOut, 403: Error, 404: Error})
 def create_attachment(request, data: LessonAttachmentIn):
     staff_required(request)
 
@@ -521,21 +462,14 @@ def create_attachment(request, data: LessonAttachmentIn):
     return Status(201, attachment)
 
 
-@admin_router.get(
-    '/lessons/{lesson_id}/attachments', response=list[LessonAttachmentOut]
-)
+@admin_router.get('/lessons/{lesson_id}/attachments', response=list[LessonAttachmentOut])
 def list_attachments(request, lesson_id: int):
     staff_required(request)
     return LessonAttachment.objects.filter(lesson_id=lesson_id).order_by('order', 'id')
 
 
-@admin_router.post(
-    '/lessons/{lesson_id}/attachments/upload',
-    response={201: LessonAttachmentOut, 400: Error, 404: Error},
-)
-def upload_attachment(
-    request, lesson_id: int, file: UploadedFile, title: str | None = None
-):
+@admin_router.post('/lessons/{lesson_id}/attachments/upload', response={201: LessonAttachmentOut, 400: Error, 404: Error})
+def upload_attachment(request, lesson_id: int, file: UploadedFile, title: str | None = None):
     staff_required(request)
     lesson = get_object_or_404(Lesson, id=lesson_id)
 
@@ -547,9 +481,7 @@ def upload_attachment(
     ext = Path(file.name).suffix.lower()
     new_name = f'{uuid.uuid4().hex}{ext}'
 
-    current_max = LessonAttachment.objects.filter(lesson=lesson).aggregate(
-        models.Max('order')
-    )['order__max']
+    current_max = LessonAttachment.objects.filter(lesson=lesson).aggregate(models.Max('order'))['order__max']
     next_order = 0 if current_max is None else current_max + 1
 
     attachment = LessonAttachment(
@@ -563,10 +495,7 @@ def upload_attachment(
     return Status(201, attachment)
 
 
-@admin_router.put(
-    '/attachments/{attachment_id}',
-    response={200: LessonAttachmentOut, 403: Error, 404: Error},
-)
+@admin_router.put('/attachments/{attachment_id}', response={200: LessonAttachmentOut, 403: Error, 404: Error})
 def update_attachment(request, attachment_id: int, data: LessonAttachmentUpdateIn):
     staff_required(request)
 
@@ -577,9 +506,7 @@ def update_attachment(request, attachment_id: int, data: LessonAttachmentUpdateI
     return Status(200, attachment)
 
 
-@admin_router.delete(
-    '/attachments/{attachment_id}', response={204: None, 403: Error, 404: Error}
-)
+@admin_router.delete('/attachments/{attachment_id}', response={204: None, 403: Error, 404: Error})
 def delete_attachment(request, attachment_id: int):
     staff_required(request)
 
