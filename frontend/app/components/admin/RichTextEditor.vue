@@ -2,6 +2,9 @@
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
+import { TextStyle } from '@tiptap/extension-text-style'
+import { Color } from '@tiptap/extension-color'
+import { Highlight } from '@tiptap/extension-highlight'
 import {
   Bold,
   Italic,
@@ -11,6 +14,8 @@ import {
   ListOrdered,
   Quote,
   Link2,
+  Highlighter,
+  Baseline,
   Undo,
   Redo,
 } from 'lucide-vue-next'
@@ -26,6 +31,9 @@ const editor = useEditor({
       openOnClick: false,
       HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
     }),
+    TextStyle,
+    Color,
+    Highlight.configure({ multicolor: true }),
   ],
   editorProps: {
     attributes: {
@@ -64,6 +72,44 @@ const setLink = () => {
     .extendMarkRange('link')
     .setLink({ href: url })
     .run()
+}
+
+// Paletas: null = remover (reset). Cores escolhidas p/ contraste no tema escuro.
+const TEXT_COLORS = [
+  { label: 'Padrão', value: null },
+  { label: 'Laranja', value: '#fb923c' },
+  { label: 'Verde', value: '#4ade80' },
+  { label: 'Azul', value: '#60a5fa' },
+  { label: 'Vermelho', value: '#f87171' },
+  { label: 'Amarelo', value: '#facc15' },
+]
+
+const HIGHLIGHT_COLORS = [
+  { label: 'Remover', value: null },
+  { label: 'Amarelo', value: '#fde047' },
+  { label: 'Verde', value: '#86efac' },
+  { label: 'Azul', value: '#93c5fd' },
+  { label: 'Rosa', value: '#f9a8d4' },
+  { label: 'Laranja', value: '#fdba74' },
+]
+
+const showTextMenu = ref(false)
+const showHlMenu = ref(false)
+
+const applyColor = (value: string | null) => {
+  const chain = editor.value?.chain().focus()
+  if (!chain) return
+  if (value) chain.setColor(value).run()
+  else chain.unsetColor().run()
+  showTextMenu.value = false
+}
+
+const applyHighlight = (value: string | null) => {
+  const chain = editor.value?.chain().focus()
+  if (!chain) return
+  if (value) chain.setHighlight({ color: value }).run()
+  else chain.unsetHighlight().run()
+  showHlMenu.value = false
 }
 </script>
 
@@ -123,6 +169,64 @@ const setLink = () => {
       >
         <Link2 class="w-4 h-4" />
       </button>
+
+      <!-- Cor do texto -->
+      <div class="relative">
+        <button
+          type="button"
+          title="Cor do texto"
+          class="p-1.5 rounded text-neutral-300 hover:bg-white/10"
+          :class="{ 'bg-orange-500/20 text-orange-400': editor.isActive('textStyle') }"
+          @click="showHlMenu = false; showTextMenu = !showTextMenu"
+        >
+          <Baseline class="w-4 h-4" />
+        </button>
+        <div
+          v-if="showTextMenu"
+          class="absolute z-20 top-full left-0 mt-1 flex gap-1 p-1.5 rounded-lg bg-neutral-900 border border-white/10 shadow-xl"
+        >
+          <button
+            v-for="c in TEXT_COLORS"
+            :key="c.label"
+            type="button"
+            :title="c.label"
+            class="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-[9px] font-bold text-neutral-400 hover:scale-110 transition-transform"
+            :style="c.value ? { backgroundColor: c.value } : {}"
+            @click="applyColor(c.value)"
+          >
+            <span v-if="!c.value">⌫</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Grifo / highlight -->
+      <div class="relative">
+        <button
+          type="button"
+          title="Grifar"
+          class="p-1.5 rounded text-neutral-300 hover:bg-white/10"
+          :class="{ 'bg-orange-500/20 text-orange-400': editor.isActive('highlight') }"
+          @click="showTextMenu = false; showHlMenu = !showHlMenu"
+        >
+          <Highlighter class="w-4 h-4" />
+        </button>
+        <div
+          v-if="showHlMenu"
+          class="absolute z-20 top-full left-0 mt-1 flex gap-1 p-1.5 rounded-lg bg-neutral-900 border border-white/10 shadow-xl"
+        >
+          <button
+            v-for="c in HIGHLIGHT_COLORS"
+            :key="c.label"
+            type="button"
+            :title="c.label"
+            class="w-5 h-5 rounded border border-white/20 flex items-center justify-center text-[9px] font-bold text-neutral-800 hover:scale-110 transition-transform"
+            :style="c.value ? { backgroundColor: c.value } : {}"
+            @click="applyHighlight(c.value)"
+          >
+            <span v-if="!c.value" class="text-neutral-400">⌫</span>
+          </button>
+        </div>
+      </div>
 
       <span class="w-px h-5 bg-white/10 mx-1" />
 
