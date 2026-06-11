@@ -7,6 +7,9 @@ import {
   Eye,
   EyeOff,
   Plus,
+  Pencil,
+  Check,
+  X,
   Loader2,
 } from 'lucide-vue-next'
 import type { LessonItem as Lesson, ModuleItem as Module } from '~/composables/useAdmin'
@@ -28,6 +31,39 @@ const loadingLessons = ref(false)
 const newLessonName = ref('')
 const creatingLesson = ref(false)
 const showInlineInput = ref(false)
+
+const editingName = ref(false)
+const nameInput = ref('')
+const savingName = ref(false)
+
+const startEditName = () => {
+  nameInput.value = props.module.name
+  editingName.value = true
+}
+
+const cancelEditName = () => {
+  editingName.value = false
+  nameInput.value = ''
+}
+
+const saveName = async () => {
+  const name = nameInput.value.trim()
+  if (!name || name === props.module.name) {
+    cancelEditName()
+    return
+  }
+  savingName.value = true
+  try {
+    await admin.updateModule(props.module.id, { name })
+    props.module.name = name
+    editingName.value = false
+    toast.success('Módulo renomeado')
+  } catch (e: any) {
+    toast.error(e?.data?.detail || 'Falha ao renomear')
+  } finally {
+    savingName.value = false
+  }
+}
 
 const loadLessons = async () => {
   loadingLessons.value = true
@@ -106,36 +142,75 @@ defineExpose({ loadLessons })
   <div class="border border-white/10 rounded-lg bg-white/[0.02] overflow-hidden">
     <div class="flex items-center gap-2 px-3 py-3">
       <GripVertical class="module-handle w-4 h-4 text-neutral-600 cursor-grab shrink-0" />
-      <button
-        type="button"
-        class="flex-1 flex items-center gap-2 text-left text-sm font-medium text-white"
-        @click="toggle"
-      >
-        <ChevronDown
-          class="w-4 h-4 text-neutral-500 transition-transform"
-          :class="{ 'rotate-180': expanded }"
-        />
-        {{ module.name }}
-        <span v-if="lessons.length" class="text-xs text-neutral-500 ml-2">
-          {{ lessons.length }} aula{{ lessons.length === 1 ? '' : 's' }}
-        </span>
-      </button>
-      <button
-        type="button"
-        :title="module.is_published ? 'Despublicar' : 'Publicar'"
-        class="p-1.5 rounded text-neutral-500 hover:text-orange-300"
-        @click="emit('togglePublish')"
-      >
-        <component :is="module.is_published ? Eye : EyeOff" class="w-4 h-4" />
-      </button>
-      <button
-        type="button"
-        title="Deletar módulo"
-        class="p-1.5 rounded text-neutral-500 hover:text-red-400"
-        @click="emit('remove')"
-      >
-        <Trash2 class="w-4 h-4" />
-      </button>
+      <template v-if="editingName">
+        <input
+          v-model="nameInput"
+          type="text"
+          placeholder="Nome do módulo..."
+          class="flex-1 px-3 py-1.5 bg-white/5 border border-orange-500/40 rounded-md text-sm text-white focus:outline-none"
+          autofocus
+          @keydown.enter.prevent="saveName"
+          @keydown.escape="cancelEditName"
+        >
+        <button
+          type="button"
+          :disabled="savingName"
+          title="Salvar"
+          class="p-1.5 rounded text-neutral-500 hover:text-green-400 disabled:opacity-50"
+          @click="saveName"
+        >
+          <Loader2 v-if="savingName" class="w-4 h-4 animate-spin" />
+          <Check v-else class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          title="Cancelar"
+          class="p-1.5 rounded text-neutral-500 hover:text-red-400"
+          @click="cancelEditName"
+        >
+          <X class="w-4 h-4" />
+        </button>
+      </template>
+      <template v-else>
+        <button
+          type="button"
+          class="flex-1 flex items-center gap-2 text-left text-sm font-medium text-white"
+          @click="toggle"
+        >
+          <ChevronDown
+            class="w-4 h-4 text-neutral-500 transition-transform"
+            :class="{ 'rotate-180': expanded }"
+          />
+          {{ module.name }}
+          <span v-if="lessons.length" class="text-xs text-neutral-500 ml-2">
+            {{ lessons.length }} aula{{ lessons.length === 1 ? '' : 's' }}
+          </span>
+        </button>
+        <button
+          type="button"
+          title="Renomear módulo"
+          class="p-1.5 rounded text-neutral-500 hover:text-orange-300"
+          @click="startEditName"
+        >
+          <Pencil class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          :title="module.is_published ? 'Despublicar' : 'Publicar'"
+          class="p-1.5 rounded text-neutral-500 hover:text-orange-300"
+          @click="emit('togglePublish')"
+        >
+          <component :is="module.is_published ? Eye : EyeOff" class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          title="Deletar módulo"
+          class="p-1.5 rounded text-neutral-500 hover:text-red-400"
+          @click="emit('remove')"
+        >
+          <Trash2 class="w-4 h-4" />
+        </button>
+      </template>
     </div>
 
     <div v-if="expanded" class="px-3 pb-3 pt-1 space-y-1.5 border-t border-white/5">
