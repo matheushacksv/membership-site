@@ -55,19 +55,32 @@ watch(
 )
 
 const onPickFile = async (e: Event) => {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file || !props.lessonId) return
-  if (file.size > 50 * 1024 * 1024) {
-    toast.error('Máximo 50MB')
-    return
-  }
+  const picked = Array.from((e.target as HTMLInputElement).files ?? [])
+  if (!picked.length || !props.lessonId) return
+
+  // Upload sequencial: o endpoint calcula `order` via Max() a cada chamada;
+  // paralelo poderia gerar `order` duplicado. Mantém a ordem de seleção.
   uploading.value = true
+  let ok = 0
+  let failed = 0
   try {
-    const att = await admin.uploadAttachment(props.lessonId, file)
-    attachments.value = [...attachments.value, att]
-    toast.success('Anexo enviado')
-  } catch (e: any) {
-    toast.error(e?.data?.detail || 'Falha no upload')
+    for (const file of picked) {
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error(`${file.name}: máximo 50MB`)
+        failed++
+        continue
+      }
+      try {
+        const att = await admin.uploadAttachment(props.lessonId, file)
+        attachments.value = [...attachments.value, att]
+        ok++
+      } catch (err: any) {
+        toast.error(`${file.name}: ${err?.data?.detail || 'falha no upload'}`)
+        failed++
+      }
+    }
+    if (ok && !failed) toast.success(ok === 1 ? 'Anexo enviado' : `${ok} anexos enviados`)
+    else if (ok) toast.success(`${ok} enviado(s), ${failed} com erro`)
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''
@@ -189,6 +202,7 @@ const save = async () => {
           <input
             ref="fileInput"
             type="file"
+            multiple
             class="hidden"
             @change="onPickFile"
           >
