@@ -19,6 +19,22 @@ const totals = computed(() => {
     percent: all.length ? Math.round((completed / all.length) * 100) : 0,
   }
 })
+
+const navRef = ref<HTMLElement | null>(null)
+
+// O <nav> tem scroll próprio; ao trocar de aula a instância é reusada e o scroll
+// fica preso onde estava. Traz o item ativo para a view (sem mexer na janela).
+const scrollActiveIntoView = () => {
+  const el = navRef.value?.querySelector<HTMLElement>(
+    `[data-lesson-id="${props.activeLessonId}"]`
+  )
+  el?.scrollIntoView({ block: 'nearest' })
+}
+
+// nextTick: o ModuleAccordion da aula só expande após o re-render, então o item
+// alvo precisa existir/estar visível no DOM antes do scroll.
+onMounted(() => nextTick(scrollActiveIntoView))
+watch(() => props.activeLessonId, () => nextTick(scrollActiveIntoView))
 </script>
 
 <template>
@@ -64,7 +80,7 @@ const totals = computed(() => {
       </button>
     </div>
 
-    <nav class="flex-1 overflow-y-auto py-2">
+    <nav ref="navRef" class="flex-1 overflow-y-auto py-2">
       <CourseModuleAccordion
         v-for="module in course.modules"
         :key="module.id"
