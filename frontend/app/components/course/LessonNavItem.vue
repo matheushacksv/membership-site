@@ -19,6 +19,7 @@ const fmtDuration = (s: number) => {
 <template>
   <NuxtLink
     :to="`/courses/${courseId}/lessons/${lesson.id}`"
+    :data-lesson-id="lesson.id"
     :class="[
       'flex items-start gap-2 px-3 py-2 rounded-md text-sm transition-colors border-l-2',
       active
