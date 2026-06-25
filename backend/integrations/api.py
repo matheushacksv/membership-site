@@ -1,3 +1,4 @@
+import hmac
 import json
 import logging
 import secrets
@@ -122,7 +123,11 @@ def _handle_revoke(email: str, course: Course, order_id: str):
 @router.post('/kiwify/webhook', response={200: dict, 401: Error, 400: Error}, auth=None)
 def kiwify_webhook(request, signature: str = ''):
     expected = settings.KIWIFY_WEBHOOK_TOKEN
-    if not expected or signature != expected:
+    # Kiwify acrescenta seu próprio &signature=<hmac> à URL, então a query pode ter
+    # dois params `signature` (o token que configuramos + o HMAC do Kiwify). O Ninja
+    # lê só o último (o HMAC) → 401. Conferimos todos os valores recebidos.
+    received = request.GET.getlist('signature') or [signature]
+    if not expected or not any(hmac.compare_digest(s, expected) for s in received):
         return Status(401, Error(detail='Invalid signature'))
 
     try:
