@@ -22,7 +22,10 @@ cursos.henriquegoularte.com.br {
 
 desafio.henriquegoularte.com.br {
     encode gzip zstd
-    request_body { max_size 10MB }
+
+    request_body {
+        max_size 10MB
+    }
 
     @backend path /v1/api/* /admin/* /static/*
     handle @backend {
