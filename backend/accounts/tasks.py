@@ -1,17 +1,48 @@
 from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
 from .models import User
 
 
+def _password_setup_url(user: User) -> str:
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    return f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
+
+
 def send_welcome_email(user_id: int):
-    user = User.objects.get(id=user_id)
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return
+
+    setup_url = _password_setup_url(user)
+    login_url = f'{settings.FRONTEND_URL}/login'
+    name = user.name or ''
+
+    text = (
+        f'Olá {name},\n\n'
+        'Sua conta na plataforma está pronta.\n\n'
+        f'Defina sua senha de acesso neste link (expira em 24h):\n{setup_url}\n\n'
+        f'Depois é só entrar em {login_url}.'
+    )
+    html = (
+        f'<p>Olá {name},</p>'
+        '<p>Sua conta na plataforma está pronta.</p>'
+        f'<p><a href="{setup_url}">Defina sua senha de acesso</a> (o link expira em 24h).</p>'
+        f'<p>Depois é só acessar <a href="{login_url}">{login_url}</a>.</p>'
+    )
 
     send_mail(
-        subject='Seu acesso ao curso chegou!',
-        message=f'Olá {user.name}, sua conta foi criada. Faça o acesso clicando aqui: {settings.FRONTEND_URL}/login',
+        subject='Seu acesso à plataforma',
+        message=text,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
+        html_message=html,
+        fail_silently=False,
     )
 
 
@@ -45,20 +76,5 @@ def send_reset_email(user_id: int, reset_url: str):
         fail_silently=True,
     )
 
-def send_welcome_email_with_reset(user_id: int, reset_url: str):
-    try:
-        user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return 
-
-    send_mail(
-        subject='Seu acesso à plataforma',
-        message=(
-            f'Olá {user.name or ""},\n\n'
-            f'Sua conta foi criada. Defina sua senha clicando no link:\n{reset_url}\n\n'
-            'O link expira em 24h.'
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False
-    )
+def send_welcome_email_with_reset(user_id: int, reset_url: str | None = None):
+    send_welcome_email(user_id)
