@@ -19,3 +19,19 @@ cursos.henriquegoularte.com.br {
         reverse_proxy frontend:3000
     }
 }
+
+desafio.henriquegoularte.com.br {
+    encode gzip zstd
+    request_body { max_size 10MB }
+
+    @backend path /v1/api/* /admin/* /static/*
+    handle @backend {
+        reverse_proxy desafio-backend:8000
+    }
+
+    handle {
+        root * /var/www/desafio
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+}
