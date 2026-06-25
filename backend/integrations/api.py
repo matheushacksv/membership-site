@@ -1,4 +1,5 @@
 import json
+import logging
 import secrets
 from datetime import timedelta
 
@@ -17,6 +18,8 @@ from core.utils.permissions import staff_required
 from courses.models import Course
 from enrollments.models import CourseEnrollment
 from integrations.schemas import ExternalEnrollIn, ExternalEnrollOut
+
+logger = logging.getLogger(__name__)
 
 router = Router(tags=['Integrations'])
 
@@ -65,11 +68,21 @@ def _enroll(user: User, course: Course, source: str, order_id: str = '') -> None
         enrollment.save()
 
 
+def _safe_enqueue(func_path: str, *args) -> None:
+    # Email é best-effort: se o broker (Redis) estiver fora, enfileirar levanta
+    # exceção. Não pode derrubar o webhook de uma compra aprovada — a matrícula
+    # já foi persistida; aqui só logamos a falha do email.
+    try:
+        async_task(func_path, *args)
+    except Exception:
+        logger.exception('Falha ao enfileirar task %s', func_path)
+
+
 def _send_welcome_with_reset(user: User) -> None:
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
     reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
-    async_task('accounts.tasks.send_welcome_email_with_reset', user.pk, reset_url)
+    _safe_enqueue('accounts.tasks.send_welcome_email_with_reset', user.pk, reset_url)
 
 
 def _handle_approved(email: str, name: str, phone: str, course: Course, order_id: str):
@@ -83,7 +96,7 @@ def _handle_approved(email: str, name: str, phone: str, course: Course, order_id
     if created:
         _send_welcome_with_reset(user)
     else:
-        async_task('accounts.tasks.send_welcome_email', user.pk)
+        _safe_enqueue('accounts.tasks.send_welcome_email', user.pk)
 
     return Status(200, {'detail': 'enrolled'})
 
@@ -117,14 +130,21 @@ def kiwify_webhook(request, signature: str = ''):
     except json.JSONDecodeError:
         return Status(400, Error(detail='Invalid JSON'))
 
-    event = (payload.get('webhook_event_type') or '').lower()
-    product = payload.get('Product') or {}
-    customer = payload.get('Customer') or {}
+    # Kiwify aninha o pedido inteiro sob "order" (Product/Customer/event ficam
+    # dentro dele). Aceita também payload achatado como fallback.
+    data = payload.get('order')
+    if not isinstance(data, dict):
+        data = payload
+
+    product = data.get('Product') if isinstance(data.get('Product'), dict) else {}
+    customer = data.get('Customer') if isinstance(data.get('Customer'), dict) else {}
+
+    event = (data.get('webhook_event_type') or '').lower()
     product_id = str(product.get('product_id') or '')
     email = (customer.get('email') or '').strip().lower()
-    name = customer.get('full_name') or ''
-    phone = customer.get('mobile') or ''
-    order_id = str(payload.get('order_id') or '')
+    name = (customer.get('full_name') or '')[:155]
+    phone = (customer.get('mobile') or '')[:20]
+    order_id = str(data.get('order_id') or '')
 
     if not product_id:
         return Status(200, {'detail': 'ignored: no product_id'})
