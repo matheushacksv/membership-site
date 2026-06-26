@@ -69,8 +69,9 @@ class BulkImportOut(Schema):
 
 
 class BulkImportQueuedOut(Schema):
-    task_id: str
+    task_id: str  # group_id na verdade
     total: int
+    chunks: int
 
 
 class BulkImportStatusOut(Schema):

@@ -84,6 +84,7 @@ export interface BulkImportResult {
 export interface BulkImportQueued {
   task_id: string
   total: number
+  chunks: number
 }
 
 export interface BulkImportStatus {
@@ -200,6 +201,7 @@ export const useAdmin = () => {
         await new Promise((r) => setTimeout(r, 2000))
         const s = await api<BulkImportStatus>(
           `/auth/admin/users/bulk-import/${queued.task_id}`,
+          { query: { chunks: queued.chunks } },
         )
         if (s.status === 'done' && s.result) return s.result
         if (s.status === 'failed') throw new Error('Falha no processamento da importação')

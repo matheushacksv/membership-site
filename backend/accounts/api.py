@@ -11,7 +11,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from django_q.tasks import async_task, fetch
+from django_q.tasks import async_task, count_group, result_group
 from ninja import Router, Status
 from ninja.files import UploadedFile
 from ninja_jwt.tokens import RefreshToken
@@ -268,44 +268,77 @@ def resend_welcome(request, user_id: int):
     return Status(200, MessageOut(detail='Email enviado'))
 
 
+BULK_CHUNK_SIZE = 300
+
+
 @router.post('/admin/users/bulk-import', response={202: BulkImportQueuedOut})
 def bulk_import_users(request, data: BulkImportIn):
     staff_required(request)
 
-    # Síncrono estourava timeout HTTP em listas grandes (1700+ linhas) e deixava
-    # importação parcial. Enfileira no worker (sem timeout) e responde na hora; o
-    # front consulta o resultado por task_id em /bulk-import/{task_id}.
+    # Lista sem limite: quebra em lotes e enfileira uma task por lote (mesmo group),
+    # cada uma abaixo do timeout de 60s do worker. O front consulta o group em
+    # /bulk-import/{group_id}?chunks=N e o status agrega os lotes. Síncrono estourava
+    # o timeout HTTP; task única estourava o timeout do worker em 1700+ linhas.
     payload = [{'email': u.email, 'name': u.name} for u in data.users]
-    task_id = async_task(
-        'accounts.tasks.bulk_import_task',
-        payload,
-        list(data.course_ids),
-        data.send_welcome,
+    course_ids = list(data.course_ids)
+    group_id = uuid.uuid4().hex
+
+    chunks = [
+        payload[i : i + BULK_CHUNK_SIZE]
+        for i in range(0, len(payload), BULK_CHUNK_SIZE)
+    ]
+    for chunk in chunks:
+        async_task(
+            'accounts.tasks.bulk_import_task',
+            chunk,
+            course_ids,
+            data.send_welcome,
+            group=group_id,
+        )
+
+    return Status(
+        202,
+        BulkImportQueuedOut(
+            task_id=group_id, total=len(payload), chunks=len(chunks)
+        ),
     )
-    return Status(202, BulkImportQueuedOut(task_id=task_id, total=len(payload)))
 
 
 @router.get(
-    '/admin/users/bulk-import/{task_id}', response={200: BulkImportStatusOut}
+    '/admin/users/bulk-import/{group_id}', response={200: BulkImportStatusOut}
 )
-def bulk_import_status(request, task_id: str):
+def bulk_import_status(request, group_id: str, chunks: int):
     staff_required(request)
 
-    task = fetch(task_id)
-    if task is None:
+    # count_group(failures=False) usa Task.objects (base) = TODAS as linhas do
+    # group, sucesso + falha. É o total finalizado; não somar failures (dobraria).
+    done = count_group(group_id)
+    if done < chunks:
         return Status(200, BulkImportStatusOut(status='pending', result=None))
-    if not task.success:
-        return Status(
-            200,
-            BulkImportStatusOut(
-                status='failed',
-                result=BulkImportOut(
-                    created=0, existing=0, enrolled=0, errors=['Falha no processamento']
-                ),
-            ),
-        )
+
+    created = existing = enrolled = 0
+    errors: list[str] = []
+    for r in result_group(group_id, failures=True) or []:
+        if isinstance(r, dict):
+            created += r.get('created', 0)
+            existing += r.get('existing', 0)
+            enrolled += r.get('enrolled', 0)
+            errors += r.get('errors', [])
+        else:
+            # lote que falhou inteiro: surfaceia o traceback (resumido)
+            errors.append(str(r)[:300])
+
     return Status(
-        200, BulkImportStatusOut(status='done', result=BulkImportOut(**task.result))
+        200,
+        BulkImportStatusOut(
+            status='done',
+            result=BulkImportOut(
+                created=created,
+                existing=existing,
+                enrolled=enrolled,
+                errors=errors,
+            ),
+        ),
     )
 
 
