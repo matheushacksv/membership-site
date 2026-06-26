@@ -48,6 +48,87 @@ router = Router(tags=['Users'])
 
 @router.post('/register', response={201: TokenOut, 400: Error}, auth=None)
 def signup(request, data: UserSignup):
+    if User.objects.filter(email=data.email).exists():
+        return Status(400, Error(detail='User already exists'))
+
+    user = cast(UserManager, User.objects).create_user(
+        email=data.email, password=data.password, name=data.name or ''
+    )
+
+    if not user:
+        return Status(400, Error(detail='Creation user error'))
+
+    async_task('accounts.tasks.send_welcome_email', user.id)
+    refresh = RefreshToken.for_user(user)
+    return Status(201, TokenOut(access=str(refresh.access_token), refresh=str(refresh)))  # type: ignore
+
+
+@router.post('/forgot-password', response={200: MessageOut}, auth=None)
+def forgot_password(request, data: ForgotPasswordIn, auth=None):
+    user = User.objects.filter(email=data.email).first()
+    if user:
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
+        async_task('accounts.tasks.send_reset_email', user.pk, reset_url)
+    return Status(
+        200, MessageOut(detail='If the email exists, you will receive a link soon')
+    )
+
+
+@router.post('/reset-password', response={200: MessageOut, 400: Error}, auth=None)
+def reset_password(request, data: ResetPasswordIn):
+    if len(data.password) < 8:
+        return Status(400, Error(detail='Password must be 8 characters or more'))
+
+    try:
+        uid = force_str(urlsafe_base64_decode(data.uid))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return Status(400, Error(detail='Invalid link'))
+
+    if not default_token_generator.check_token(user, data.token):
+        return Status(400, Error(detail='Invalid or expired link'))
+
+    user.set_password(data.password)
+    user.save()
+    return Status(200, MessageOut(detail='Password reset successfully'))
+
+
+@router.post('/reset-password/resend', response={200: MessageOut}, auth=None)
+def resend_reset(request, data: ResendLinkIn):
+    try:
+        user_id = force_str(urlsafe_base64_decode(data.uid))
+        user = User.objects.get(pk=user_id)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+
+    if user:
+        token = default_token_generator.make_token(user)
+        reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={data.uid}&token={token}'
+        async_task('accounts.tasks.send_reset_email', user.pk, reset_url)
+
+    return Status(200, MessageOut(detail='If the account exists, a new link was sent'))
+
+
+@router.get(
+    '/reset-password/validate', response={200: MessageOut, 400: Error}, auth=None
+)
+def validate_reset(request, uid: str, token: str):
+    try:
+        user_id = force_str(urlsafe_base64_decode(uid))
+        user = User.objects.get(pk=user_id)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return Status(400, Error(detail='Invalid link'))
+
+    if not default_token_generator.check_token(user, token):
+        return Status(400, Error(detail='Invalid or expired link'))
+    return Status(200, MessageOut(detail='ok'))
+
+
+@router.post('/register-webhook', response={201: UserOut, 400: Error}, auth=None)
+def new_user_webhook(request, data: NewUserFromWebhook):
+    if User.objects.filter(email=data.email).exists():
         return Status(400, Error(detail='User already exists'))
 
     user = cast(UserManager, User.objects).create_user(
