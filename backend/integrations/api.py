@@ -97,7 +97,9 @@ def _handle_approved(email: str, name: str, phone: str, course: Course, order_id
     if created:
         _send_welcome_with_reset(user)
     else:
-        _safe_enqueue('accounts.tasks.send_welcome_email', user.pk)
+        # Comprador já existente: já tem senha. Não reenviar "defina senha"
+        # (confuso + classifica como spam). Só notifica curso liberado.
+        _safe_enqueue('accounts.tasks.send_new_course_email', user.pk, course.name)
 
     return Status(200, {'detail': 'enrolled'})
 
