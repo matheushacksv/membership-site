@@ -8,6 +8,8 @@ useHead({ title: 'Alunos — Admin' })
 const admin = useAdmin()
 
 const search = ref('')
+const courseFilter = ref<number | null>(null)
+const statusFilter = ref<string>('')
 const showCreate = ref(false)
 const showBulk = ref(false)
 const showEdit = ref(false)
@@ -86,39 +88,73 @@ const reloadRow = (userId: number) => {
       </div>
     </header>
 
-    <div class="relative max-w-sm">
-      <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-      <input
-        v-model="search"
-        type="search"
-        placeholder="Buscar por nome ou email..."
-        class="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="relative flex-1 min-w-[16rem] max-w-sm">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+        <input
+          v-model="search"
+          type="search"
+          :placeholder="courseFilter ? 'Buscar aluno na matrícula...' : 'Buscar por nome ou email...'"
+          class="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
+        >
+      </div>
+
+      <select
+        v-model.number="courseFilter"
+        class="py-2.5 px-3 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none [&>option]:bg-[#0a0a0a] [&>option]:text-white"
       >
+        <option :value="null">Todos os cursos</option>
+        <option v-for="c in courses || []" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+
+      <select
+        v-if="courseFilter"
+        v-model="statusFilter"
+        class="py-2.5 px-3 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none [&>option]:bg-[#0a0a0a] [&>option]:text-white"
+      >
+        <option value="">Todos os status</option>
+        <option value="active">Ativas</option>
+        <option value="expired">Expiradas</option>
+        <option value="lifetime">Vitalícias</option>
+        <option value="inactive">Inativas</option>
+      </select>
     </div>
 
-    <div v-if="pending" class="flex justify-center py-16">
-      <Loader2 class="w-6 h-6 text-orange-500 animate-spin" />
-    </div>
+    <!-- Modo gestão em massa: filtrou por curso -->
+    <AdminEnrollmentBulkPanel
+      v-if="courseFilter"
+      :course-id="courseFilter"
+      :status="statusFilter"
+      :search="search"
+      :courses="courses || []"
+    />
 
-    <div
-      v-else-if="users?.length"
-      class="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden"
-    >
-      <AdminUserRow
-        v-for="u in users"
-        :key="u.id"
-        :ref="(el) => setRowRef(u.id, el)"
-        :user="u"
-        :courses="courses || []"
-        @edit="openEdit"
-        @add-enrollment="openAddEnrollment"
-        @edit-enrollment="openEditEnrollment"
-      />
-    </div>
+    <!-- Modo padrão: lista de alunos -->
+    <template v-else>
+      <div v-if="pending" class="flex justify-center py-16">
+        <Loader2 class="w-6 h-6 text-orange-500 animate-spin" />
+      </div>
 
-    <div v-else class="bg-white/[0.02] border border-white/5 rounded-xl py-16 text-center">
-      <p class="text-sm text-neutral-500">Nenhum aluno encontrado.</p>
-    </div>
+      <div
+        v-else-if="users?.length"
+        class="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden"
+      >
+        <AdminUserRow
+          v-for="u in users"
+          :key="u.id"
+          :ref="(el) => setRowRef(u.id, el)"
+          :user="u"
+          :courses="courses || []"
+          @edit="openEdit"
+          @add-enrollment="openAddEnrollment"
+          @edit-enrollment="openEditEnrollment"
+        />
+      </div>
+
+      <div v-else class="bg-white/[0.02] border border-white/5 rounded-xl py-16 text-center">
+        <p class="text-sm text-neutral-500">Nenhum aluno encontrado.</p>
+      </div>
+    </template>
 
     <AdminUserCreateModal
       :open="showCreate"

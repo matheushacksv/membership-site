@@ -122,15 +122,21 @@ def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: boo
     {'email': str, 'name': str|None}. Email inválido vai pra `errors` e não derruba
     o resto. Retorna o resumo do lote; o status agrega os lotes pelo group.
     """
+    from django.utils import timezone
+
     from courses.models import Course
     from enrollments.models import CourseEnrollment
+    from enrollments.services import expiry_from_days
 
     created = existing = enrolled = 0
     errors: list[str] = []
 
-    valid_course_ids = list(
-        Course.objects.filter(id__in=course_ids).values_list('id', flat=True)
+    # {course_id: access_days} — precisa do access_days pra computar a expiração;
+    # sem isso a matrícula entra vitalícia ignorando a janela de acesso do curso.
+    courses_map = dict(
+        Course.objects.filter(id__in=course_ids).values_list('id', 'access_days')
     )
+    now = timezone.now()
 
     for item in users:
         raw = item.get('email')
@@ -158,9 +164,11 @@ def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: boo
                 else:
                     existing += 1
 
-                for c_id in valid_course_ids:
+                for c_id, access_days in courses_map.items():
                     _, was_enrolled = CourseEnrollment.objects.get_or_create(
-                        user=user, course_id=c_id
+                        user=user,
+                        course_id=c_id,
+                        defaults={'expires_at': expiry_from_days(access_days, now)},
                     )
                     if was_enrolled:
                         enrolled += 1

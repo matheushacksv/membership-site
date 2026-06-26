@@ -2,12 +2,10 @@ import hmac
 import json
 import logging
 import secrets
-from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.db import transaction
-from django.utils import timezone
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django_q.tasks import async_task
@@ -18,6 +16,7 @@ from core.utils.errors import Error
 from core.utils.permissions import staff_required
 from courses.models import Course
 from enrollments.models import CourseEnrollment
+from enrollments.services import expiry_from_days
 from integrations.schemas import ExternalEnrollIn, ExternalEnrollOut
 
 logger = logging.getLogger(__name__)
@@ -46,9 +45,7 @@ def _get_or_create_user(email: str, name: str, phone: str):
 
 
 def _enroll(user: User, course: Course, source: str, order_id: str = '') -> None:
-    expires_at = None
-    if course.access_days:
-        expires_at = timezone.now() + timedelta(days=course.access_days)
+    expires_at = expiry_from_days(course.access_days)
 
     enrollment, e_created = CourseEnrollment.objects.get_or_create(
         user=user,
