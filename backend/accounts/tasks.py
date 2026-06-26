@@ -1,8 +1,13 @@
+import secrets
+
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
+from django.db import transaction
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django_q.tasks import async_task
+from email_validator import EmailNotValidError, validate_email
 
 from .models import User
 
@@ -109,3 +114,61 @@ def send_reset_email(user_id: int, reset_url: str):
 
 def send_welcome_email_with_reset(user_id: int, reset_url: str | None = None):
     send_welcome_email(user_id)
+
+
+def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: bool = True) -> dict:
+    """Importação em massa rodando no worker (sem timeout HTTP).
+
+    Lista de qualquer tamanho: o endpoint só enfileira esta task e responde na
+    hora. `users` é lista de {'email': str, 'name': str|None}. Email inválido vai
+    pra `errors` e não derruba o resto. Retorna o resumo (salvo pelo django-q,
+    consultável por task_id).
+    """
+    from courses.models import Course
+    from enrollments.models import CourseEnrollment
+
+    created = existing = enrolled = 0
+    errors: list[str] = []
+
+    valid_course_ids = list(
+        Course.objects.filter(id__in=course_ids).values_list('id', flat=True)
+    )
+
+    for item in users:
+        raw = item.get('email')
+        try:
+            email = validate_email(raw, check_deliverability=False).normalized
+        except EmailNotValidError:
+            errors.append(f'{raw or "(vazio)"}: email inválido')
+            continue
+        try:
+            with transaction.atomic():
+                user, was_created = User.objects.get_or_create(
+                    email=email, defaults={'name': item.get('name') or ''}
+                )
+                if was_created:
+                    user.set_password(secrets.token_urlsafe(32))
+                    user.save()
+                    created += 1
+                    if send_welcome:
+                        async_task(
+                            'accounts.tasks.send_welcome_email_with_reset', user.pk
+                        )
+                else:
+                    existing += 1
+
+                for c_id in valid_course_ids:
+                    _, was_enrolled = CourseEnrollment.objects.get_or_create(
+                        user=user, course_id=c_id
+                    )
+                    if was_enrolled:
+                        enrolled += 1
+        except Exception as e:
+            errors.append(f'{email}: {e}')
+
+    return {
+        'created': created,
+        'existing': existing,
+        'enrolled': enrolled,
+        'errors': errors,
+    }

@@ -81,6 +81,16 @@ export interface BulkImportResult {
   errors: string[]
 }
 
+export interface BulkImportQueued {
+  task_id: string
+  total: number
+}
+
+export interface BulkImportStatus {
+  status: 'pending' | 'done' | 'failed'
+  result: BulkImportResult | null
+}
+
 export interface AttachmentItem {
   id: number
   title: string
@@ -177,11 +187,27 @@ export const useAdmin = () => {
       api<{ detail: string }>(`/auth/admin/users/${id}/resend-welcome`, {
         method: 'POST',
       }),
-    bulkImport: (body: BulkImportBody) =>
-      api<BulkImportResult>('/auth/admin/users/bulk-import', {
+    // Importação roda no worker (sem timeout HTTP): POST enfileira e responde na
+    // hora; aqui fazemos poll do status até terminar. Escala pra qualquer tamanho.
+    bulkImport: async (body: BulkImportBody): Promise<BulkImportResult> => {
+      const queued = await api<BulkImportQueued>('/auth/admin/users/bulk-import', {
         method: 'POST',
         body,
-      }),
+      })
+      const started = Date.now()
+      const TIMEOUT_MS = 10 * 60 * 1000
+      while (true) {
+        await new Promise((r) => setTimeout(r, 2000))
+        const s = await api<BulkImportStatus>(
+          `/auth/admin/users/bulk-import/${queued.task_id}`,
+        )
+        if (s.status === 'done' && s.result) return s.result
+        if (s.status === 'failed') throw new Error('Falha no processamento da importação')
+        if (Date.now() - started > TIMEOUT_MS) {
+          throw new Error('Importação ainda processando; confira a lista em instantes')
+        }
+      }
+    },
 
     // Enrollments
     listEnrollments: (filters?: { course_id?: number; user_id?: number }) =>

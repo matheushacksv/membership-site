@@ -68,6 +68,16 @@ class BulkImportOut(Schema):
     errors: list[str]
 
 
+class BulkImportQueuedOut(Schema):
+    task_id: str
+    total: int
+
+
+class BulkImportStatusOut(Schema):
+    status: str  # 'pending' | 'done' | 'failed'
+    result: BulkImportOut | None = None
+
+
 class TokenOut(Schema):
     access: str
     refresh: str

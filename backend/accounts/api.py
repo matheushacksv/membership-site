@@ -11,8 +11,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from django_q.tasks import async_task
-from email_validator import EmailNotValidError, validate_email
+from django_q.tasks import async_task, fetch
 from ninja import Router, Status
 from ninja.files import UploadedFile
 from ninja_jwt.tokens import RefreshToken
@@ -26,6 +25,8 @@ from .models import User, UserManager
 from .schemas import (
     BulkImportIn,
     BulkImportOut,
+    BulkImportQueuedOut,
+    BulkImportStatusOut,
     ForgotPasswordIn,
     LoginIn,
     MessageOut,
@@ -267,57 +268,44 @@ def resend_welcome(request, user_id: int):
     return Status(200, MessageOut(detail='Email enviado'))
 
 
-@router.post('/admin/users/bulk-import', response={200: BulkImportOut})
+@router.post('/admin/users/bulk-import', response={202: BulkImportQueuedOut})
 def bulk_import_users(request, data: BulkImportIn):
     staff_required(request)
 
-    created = existing = enrolled = 0
-    errors: list[str] = []
-
-    valid_courses_ids = list(
-        Course.objects.filter(id__in=data.course_ids).values_list('id', flat=True)
+    # Síncrono estourava timeout HTTP em listas grandes (1700+ linhas) e deixava
+    # importação parcial. Enfileira no worker (sem timeout) e responde na hora; o
+    # front consulta o resultado por task_id em /bulk-import/{task_id}.
+    payload = [{'email': u.email, 'name': u.name} for u in data.users]
+    task_id = async_task(
+        'accounts.tasks.bulk_import_task',
+        payload,
+        list(data.course_ids),
+        data.send_welcome,
     )
+    return Status(202, BulkImportQueuedOut(task_id=task_id, total=len(payload)))
 
-    for item in data.users:
-        try:
-            email = validate_email(item.email, check_deliverability=False).normalized
-        except EmailNotValidError:
-            errors.append(f'{item.email or "(vazio)"}: email inválido')
-            continue
-        try:
-            with transaction.atomic():
-                user, was_created = User.objects.get_or_create(
-                    email=email, defaults={'name': item.name or ''}
-                )
-                if was_created:
-                    user.set_password(secrets.token_urlsafe(32))
-                    user.save()
-                    created += 1
-                    if data.send_welcome:
-                        uid = urlsafe_base64_encode(force_bytes(user.pk))
-                        token = default_token_generator.make_token(user)
-                        reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
-                        async_task(
-                            'accounts.tasks.send_welcome_email_with_reset',
-                            user.pk,
-                            reset_url,
-                        )
-                else:
-                    existing += 1
 
-                for c_id in valid_courses_ids:
-                    _, was_enrolled = CourseEnrollment.objects.get_or_create(
-                        user=user, course_id=c_id
-                    )
-                    if was_enrolled:
-                        enrolled += 1
-        except Exception as e:
-            errors.append(f'{item.email}: {e}')
+@router.get(
+    '/admin/users/bulk-import/{task_id}', response={200: BulkImportStatusOut}
+)
+def bulk_import_status(request, task_id: str):
+    staff_required(request)
+
+    task = fetch(task_id)
+    if task is None:
+        return Status(200, BulkImportStatusOut(status='pending', result=None))
+    if not task.success:
+        return Status(
+            200,
+            BulkImportStatusOut(
+                status='failed',
+                result=BulkImportOut(
+                    created=0, existing=0, enrolled=0, errors=['Falha no processamento']
+                ),
+            ),
+        )
     return Status(
-        200,
-        BulkImportOut(
-            created=created, existing=existing, enrolled=enrolled, errors=errors
-        ),
+        200, BulkImportStatusOut(status='done', result=BulkImportOut(**task.result))
     )
 
 
