@@ -84,6 +84,10 @@ class ForgotPasswordIn(Schema):
     email: EmailStr
 
 
+class ResendLinkIn(Schema):
+    uid: str
+
+
 class ResetPasswordIn(Schema):
     uid: str
     token: str

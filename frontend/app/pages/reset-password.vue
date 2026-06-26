@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { FetchError } from 'ofetch'
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-vue-next'
+import { CheckCircle2, AlertCircle, Loader2, Mail } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'auth' })
 useHead({ title: 'Redefinir senha — Área de Membros' })
@@ -21,6 +21,10 @@ const success = ref(false)
 const validating = ref(true)
 const linkValid = ref(false)
 const linkError = ref<string | null>(null)
+
+const resending = ref(false)
+const resent = ref(false)
+const resendError = ref<string | null>(null)
 
 const passwordError = computed(() => {
   if (!password.value) return null
@@ -60,6 +64,26 @@ const validateLink = async () => {
 }
 
 await validateLink()
+
+const resendLink = async () => {
+  resendError.value = null
+  resending.value = true
+  try {
+    await api('/auth/reset-password/resend', {
+      method: 'POST',
+      body: { uid: uid.value },
+    })
+    resent.value = true
+  } catch (e) {
+    if (e instanceof FetchError) {
+      resendError.value = e.data?.detail || 'Erro ao reenviar o link'
+    } else {
+      resendError.value = 'Erro inesperado'
+    }
+  } finally {
+    resending.value = false
+  }
+}
 
 const onSubmit = async () => {
   error.value = null
@@ -117,6 +141,24 @@ const onSubmit = async () => {
         <p class="text-sm text-white/60">Validando link...</p>
       </div>
 
+      <!-- Resent confirmation -->
+      <template v-else-if="resent">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-orange-500/20 border border-orange-500/40 flex items-center justify-center">
+            <Mail class="w-5 h-5 text-orange-400" />
+          </div>
+          <h1 class="text-2xl md:text-3xl font-medium tracking-tighter text-white leading-[1.1]">
+            Novo link enviado
+          </h1>
+        </div>
+        <p class="text-sm text-white/60 mb-6">
+          Enviamos um novo link para o seu email. Abra-o para definir sua senha — ele vale por 24h.
+        </p>
+        <p class="text-xs text-neutral-500 mb-6">
+          Não chegou? Confira a caixa de spam ou aguarde alguns minutos.
+        </p>
+      </template>
+
       <!-- Invalid link -->
       <template v-else-if="!linkValid">
         <div class="flex items-center gap-3 mb-4">
@@ -131,9 +173,32 @@ const onSubmit = async () => {
           {{ linkError }}
         </p>
         <p class="text-xs text-neutral-500 mb-6">
-          O link pode ter expirado (válido por 24h) ou já ter sido usado. Solicite um novo link de recuperação.
+          O link pode ter expirado (válido por 24h) ou já ter sido usado.
         </p>
+
+        <Transition name="fade">
+          <div
+            v-if="resendError"
+            class="bg-red-500/10 border border-red-500/30 text-red-300 text-sm rounded-lg px-3 py-2 mb-4"
+            role="alert"
+          >
+            {{ resendError }}
+          </div>
+        </Transition>
+
+        <template v-if="uid">
+          <PrimaryButton type="button" :loading="resending" :show-arrow="false" @click="resendLink">
+            Receber novo link
+          </PrimaryButton>
+          <NuxtLink
+            to="/forgot-password"
+            class="block w-full text-center py-2 mt-2 text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+          >
+            Usar outro email
+          </NuxtLink>
+        </template>
         <NuxtLink
+          v-else
           to="/forgot-password"
           class="block w-full text-center py-2 text-sm text-orange-500 hover:text-orange-400 transition-colors"
         >

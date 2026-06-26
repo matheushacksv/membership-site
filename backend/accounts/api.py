@@ -30,6 +30,7 @@ from .schemas import (
     MessageOut,
     NewUserFromWebhook,
     RefreshIn,
+    ResendLinkIn,
     ResetPasswordIn,
     StaffCreateUserIn,
     StaffUpdateUser,
@@ -92,6 +93,22 @@ def reset_password(request, data: ResetPasswordIn):
     user.set_password(data.password)
     user.save()
     return Status(200, MessageOut(detail='Password reset successfully'))
+
+
+@router.post('/reset-password/resend', response={200: MessageOut}, auth=None)
+def resend_reset(request, data: ResendLinkIn):
+    try:
+        user_id = force_str(urlsafe_base64_decode(data.uid))
+        user = User.objects.get(pk=user_id)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+
+    if user:
+        token = default_token_generator.make_token(user)
+        reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={data.uid}&token={token}'
+        async_task('accounts.tasks.send_reset_email', user.pk, reset_url)
+
+    return Status(200, MessageOut(detail='If the account exists, a new link was sent'))
 
 
 @router.get(
