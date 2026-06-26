@@ -1,5 +1,3 @@
-import secrets
-
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
@@ -117,12 +115,12 @@ def send_welcome_email_with_reset(user_id: int, reset_url: str | None = None):
 
 
 def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: bool = True) -> dict:
-    """Importação em massa rodando no worker (sem timeout HTTP).
+    """Processa UM lote da importação em massa, no worker.
 
-    Lista de qualquer tamanho: o endpoint só enfileira esta task e responde na
-    hora. `users` é lista de {'email': str, 'name': str|None}. Email inválido vai
-    pra `errors` e não derruba o resto. Retorna o resumo (salvo pelo django-q,
-    consultável por task_id).
+    O endpoint quebra a lista em lotes e enfileira uma task destas por lote (mesmo
+    `group`), cada uma bem abaixo do timeout de 60s do worker. `users` é lista de
+    {'email': str, 'name': str|None}. Email inválido vai pra `errors` e não derruba
+    o resto. Retorna o resumo do lote; o status agrega os lotes pelo group.
     """
     from courses.models import Course
     from enrollments.models import CourseEnrollment
@@ -147,7 +145,10 @@ def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: boo
                     email=email, defaults={'name': item.get('name') or ''}
                 )
                 if was_created:
-                    user.set_password(secrets.token_urlsafe(32))
+                    # Senha inutilizável (sem pbkdf2): o aluno define a senha real
+                    # pelo link do email. set_password aqui faria hashing caro por
+                    # aluno e estourava o timeout de 60s do worker em lotes grandes.
+                    user.set_unusable_password()
                     user.save()
                     created += 1
                     if send_welcome:
