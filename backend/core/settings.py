@@ -157,6 +157,12 @@ Q_CLUSTER = {
     'recycle': 500,
     'timeout': 60,
     'retry': 120,
+    # Falha é final: dá ack na task que falhou e não reenfileira. Sem isso (default
+    # ack_failures=False, max_attempts=0) uma task que sempre falha — ex.: SMTP fora —
+    # é redelivered a cada `retry`s pra sempre, virando loop infinito que martela o
+    # servidor de email. max_attempts=1 = sem retry automático.
+    'ack_failures': True,
+    'max_attempts': 1,
     'queue_limit': 50,
     'bulk': 10,
     'redis': {
@@ -177,6 +183,13 @@ EMAIL_HOST = config('EMAIL_HOST')
 EMAIL_PORT = config('EMAIL_PORT', cast=int)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+# Pacing dos emails de boas-vindas em massa (importação). Cada lote reusa 1 conexão
+# SMTP e espaça os envios pra não disparar rajada de logins/volume que o provedor
+# bloqueia. IMPORTANTE: EMAIL_BATCH_SIZE * EMAIL_PACE_SECONDS deve ficar abaixo do
+# Q_CLUSTER['timeout'] (60s), senão o lote estoura o timeout do worker.
+EMAIL_BATCH_SIZE = config('EMAIL_BATCH_SIZE', default=20, cast=int)
+EMAIL_PACE_SECONDS = config('EMAIL_PACE_SECONDS', default=1.0, cast=float)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@localhost')
 
