@@ -46,6 +46,37 @@ def send_welcome_email(user_id: int):
     )
 
 
+def send_new_course_email(user_id: int, course_name: str = ''):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return
+
+    login_url = f'{settings.FRONTEND_URL}/login'
+    name = user.name or ''
+    course = course_name or 'um novo curso'
+
+    text = (
+        f'Olá {name},\n\n'
+        f'Seu acesso ao curso "{course}" foi liberado.\n\n'
+        f'Entre com sua senha de sempre em {login_url} para começar.'
+    )
+    html = (
+        f'<p>Olá {name},</p>'
+        f'<p>Seu acesso ao curso <strong>{course}</strong> foi liberado.</p>'
+        f'<p>Entre com sua senha de sempre em <a href="{login_url}">{login_url}</a> para começar.</p>'
+    )
+
+    send_mail(
+        subject='Novo curso liberado',
+        message=text,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        html_message=html,
+        fail_silently=True,
+    )
+
+
 def send_reset_email(user_id: int, reset_url: str):
     try:
         user = User.objects.get(id=user_id)
