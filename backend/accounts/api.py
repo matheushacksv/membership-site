@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django_q.tasks import async_task
+from email_validator import EmailNotValidError, validate_email
 from ninja import Router, Status
 from ninja.files import UploadedFile
 from ninja_jwt.tokens import RefreshToken
@@ -279,9 +280,14 @@ def bulk_import_users(request, data: BulkImportIn):
 
     for item in data.users:
         try:
+            email = validate_email(item.email, check_deliverability=False).normalized
+        except EmailNotValidError:
+            errors.append(f'{item.email or "(vazio)"}: email inválido')
+            continue
+        try:
             with transaction.atomic():
                 user, was_created = User.objects.get_or_create(
-                    email=item.email, defaults={'name': item.name or ''}
+                    email=email, defaults={'name': item.name or ''}
                 )
                 if was_created:
                     user.set_password(secrets.token_urlsafe(32))

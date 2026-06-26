@@ -49,7 +49,9 @@ class StaffCreateUserIn(Schema):
 
 
 class BulkUserItem(Schema):
-    email: EmailStr
+    # str (não EmailStr): validação por-item no handler. EmailStr aqui barraria
+    # o body inteiro (422) num único email ruim, abortando toda a importação.
+    email: str
     name: str | None = None
 
 
