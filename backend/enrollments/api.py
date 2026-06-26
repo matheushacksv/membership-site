@@ -11,13 +11,17 @@ from courses.models import Course, Lesson
 
 from .models import CourseEnrollment, LessonProgress
 from .schemas import (
+    BulkEnrollmentIn,
+    BulkEnrollmentOut,
     CourseProgressOut,
+    EnrollmentAdminPage,
     EnrollmentIn,
     EnrollmentOut,
     ProgressIn,
     ProgressOut,
     UpdateEnrollmentIn,
 )
+from .services import expiry_from_days
 
 router = Router(tags=['Enrollment'])
 
@@ -80,6 +84,81 @@ def list_enrollments(request, course_id: int | None = None, user_id: int | None 
     if user_id is not None:
         qs = qs.filter(user_id=user_id)
     return qs
+
+
+# * --------------- Admin: gestão em massa de matrículas --------------- * #
+
+
+def _filter_admin_enrollments(course_id, status, search):
+    qs = CourseEnrollment.objects.all()
+    if course_id is not None:
+        qs = qs.filter(course_id=course_id)
+    if search:
+        qs = qs.filter(Q(user__email__icontains=search) | Q(user__name__icontains=search))
+
+    now = timezone.now()
+    if status == 'active':
+        qs = qs.filter(is_active=True).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+    elif status == 'inactive':
+        qs = qs.filter(is_active=False)
+    elif status == 'expired':
+        qs = qs.filter(expires_at__isnull=False, expires_at__lte=now)
+    elif status == 'lifetime':
+        qs = qs.filter(expires_at__isnull=True)
+    return qs
+
+
+@router.get('/admin', response={200: EnrollmentAdminPage, 403: Error})
+def list_enrollments_admin(
+    request,
+    course_id: int | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    staff_required(request)
+    qs = _filter_admin_enrollments(course_id, status, search)
+    total = qs.count()
+    items = list(
+        qs.select_related('user', 'course').order_by('-enrolled_at')[offset : offset + limit]
+    )
+    return Status(200, {'total': total, 'items': items})
+
+
+@router.get('/admin/ids', response={200: list[int], 403: Error})
+def list_enrollment_ids(
+    request,
+    course_id: int | None = None,
+    status: str | None = None,
+    search: str | None = None,
+):
+    staff_required(request)
+    qs = _filter_admin_enrollments(course_id, status, search)
+    return Status(200, list(qs.values_list('id', flat=True)))
+
+
+@router.post('/bulk', response={200: BulkEnrollmentOut, 403: Error})
+def bulk_enrollments(request, data: BulkEnrollmentIn):
+    staff_required(request)
+    qs = CourseEnrollment.objects.filter(id__in=data.enrollment_ids)
+
+    if data.action == 'delete':
+        affected = qs.count()
+        qs.delete()
+    elif data.action == 'set_active':
+        affected = qs.update(is_active=bool(data.is_active))
+    elif data.action == 'set_expiry':
+        # expires_at None = vitalícia
+        affected = qs.update(expires_at=data.expires_at)
+    else:  # apply_course_days: expira a partir do enrolled_at de cada matrícula
+        rows = list(qs.select_related('course'))
+        for e in rows:
+            e.expires_at = expiry_from_days(e.course.access_days, e.enrolled_at)
+        CourseEnrollment.objects.bulk_update(rows, ['expires_at'])
+        affected = len(rows)
+
+    return Status(200, BulkEnrollmentOut(affected=affected))
 
 
 @router.get('/me/courses', response={200: list[EnrollmentOut]})

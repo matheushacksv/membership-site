@@ -108,6 +108,46 @@ export interface EnrollmentItem {
   created_at: string
 }
 
+export type EnrollmentStatus = 'active' | 'inactive' | 'expired' | 'lifetime'
+
+export interface EnrollmentAdminItem {
+  id: number
+  user_id: number
+  user_name: string | null
+  user_email: string
+  course_id: number
+  course_name: string
+  expires_at: string | null
+  is_active: boolean
+  enrolled_at: string
+}
+
+export interface EnrollmentAdminPage {
+  total: number
+  items: EnrollmentAdminItem[]
+}
+
+export interface EnrollmentAdminFilters {
+  course_id?: number
+  status?: EnrollmentStatus
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+export type BulkEnrollmentAction =
+  | 'set_expiry'
+  | 'apply_course_days'
+  | 'delete'
+  | 'set_active'
+
+export interface BulkEnrollmentBody {
+  enrollment_ids: number[]
+  action: BulkEnrollmentAction
+  expires_at?: string | null
+  is_active?: boolean
+}
+
 export const useAdmin = () => {
   const api = useApi()
 
@@ -233,5 +273,13 @@ export const useAdmin = () => {
       }),
     deleteEnrollment: (id: number) =>
       api(`/enrollments/enrollments/${id}`, { method: 'DELETE' }),
+
+    // Gestão em massa (centrada em curso): lista paginada + ids do filtro + ação bulk
+    listEnrollmentsAdmin: (filters: EnrollmentAdminFilters) =>
+      api<EnrollmentAdminPage>('/enrollments/admin', { query: filters }),
+    enrollmentIds: (filters: Omit<EnrollmentAdminFilters, 'limit' | 'offset'>) =>
+      api<number[]>('/enrollments/admin/ids', { query: filters }),
+    bulkEnrollments: (body: BulkEnrollmentBody) =>
+      api<{ affected: number }>('/enrollments/bulk', { method: 'POST', body }),
   }
 }
