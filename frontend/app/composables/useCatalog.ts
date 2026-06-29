@@ -13,6 +13,14 @@ export interface CourseListItem {
   resume_lesson_id?: number | null
 }
 
+export interface BannerItem {
+  id: number
+  title: string
+  image: string | null
+  url: string
+  is_active: boolean
+}
+
 export const useCatalog = () => {
   const api = useApi()
 
@@ -23,5 +31,7 @@ export const useCatalog = () => {
       query: category ? { category } : {},
     })
 
-  return { myCourses, availableCourses }
+  const banners = () => api<BannerItem[]>('/catalog/banners')
+
+  return { myCourses, availableCourses, banners }
 }

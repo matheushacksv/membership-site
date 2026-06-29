@@ -8,7 +8,7 @@ from django.db.utils import IntegrityError
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from ninja import Router, Status
+from ninja import Form, Router, Status
 from ninja.files import UploadedFile
 
 from core.utils.errors import Error
@@ -24,6 +24,7 @@ from .helpers import (
     _stamp_pdf,
 )
 from .models import (
+    Banner,
     Course,
     CourseForm,
     DownloadLog,
@@ -34,6 +35,8 @@ from .models import (
     Module,
 )
 from .schemas import (
+    BannerOut,
+    BannerUpdateIn,
     CommentIn,
     CommentOut,
     CommentUpdateIn,
@@ -302,6 +305,11 @@ def download_attachment(request, attachment_id: int):
     resp = HttpResponse(body, content_type=ctype)
     resp['Content-Disposition'] = f'attachment; filename="{att.title or name}"'
     return resp
+
+
+@catalog_router.get('/banners', response=list[BannerOut])
+def list_active_banners(request):
+    return Banner.objects.filter(is_active=True)
 
 
 # * ----------------------------------------- * #
@@ -651,3 +659,60 @@ def list_form_responses(request, course_id: int):
         .order_by('-created_at')
     )
     return Status(200, list(qs))
+
+
+# * ----------------------------------------- * #
+# ? ----------- Banners Endpoints ----------- ? #
+# * ----------------------------------------- * #
+
+
+@admin_router.get('/banners', response=list[BannerOut])
+def list_banners(request):
+    staff_required(request)
+    return Banner.objects.all()
+
+
+@admin_router.post('/banners', response={201: BannerOut, 400: Error, 403: Error})
+def create_banner(request, file: UploadedFile, title: str = Form(...), url: str = Form(...), is_active: bool = Form(False)):
+    staff_required(request)
+
+    if not url.startswith(('http://', 'https://')):
+        return Status(400, Error(detail='URL deve começar com http:// ou https://'))
+    if file.size is None or file.size > 5 * 1024 * 1024:
+        return Status(400, Error(detail='Imagem muito grande (max 5MB)'))
+    if file.content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
+        return Status(400, Error(detail='Tipo inválido: jpg, png ou webp'))
+    if not file.name:
+        return Status(400, Error(detail='Nome ausente'))
+
+    ext = Path(file.name).suffix.lower()
+    new_name = f'{uuid.uuid4().hex}{ext}'
+    banner = Banner(title=title, url=url, is_active=is_active)
+    banner.image.save(new_name, file, save=True)
+    return Status(201, banner)
+
+
+@admin_router.put('/banners/{banner_id}', response={200: BannerOut, 400: Error, 403: Error, 404: Error})
+def update_banner(request, banner_id: int, data: BannerUpdateIn):
+    staff_required(request)
+
+    banner = get_object_or_404(Banner, id=banner_id)
+    payload = data.model_dump(exclude_unset=True)
+    if 'url' in payload and not payload['url'].startswith(('http://', 'https://')):
+        return Status(400, Error(detail='URL deve começar com http:// ou https://'))
+
+    for field, value in payload.items():
+        setattr(banner, field, value)
+    banner.save()
+    return Status(200, banner)
+
+
+@admin_router.delete('/banners/{banner_id}', response={204: None, 403: Error, 404: Error})
+def delete_banner(request, banner_id: int):
+    staff_required(request)
+
+    banner = get_object_or_404(Banner, id=banner_id)
+    if banner.image:
+        banner.image.delete(save=False)  # não deixar órfão no MinIO
+    banner.delete()
+    return Status(204, None)

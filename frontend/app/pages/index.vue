@@ -7,7 +7,9 @@ definePageMeta({ layout: 'default' })
 useHead({ title: 'Início — Área de Membros' })
 
 const { data: me } = useMe()
-const { myCourses, availableCourses } = useCatalog()
+const { myCourses, availableCourses, banners } = useCatalog()
+
+const { data: bannerList } = await useAsyncData('home-banners', () => banners())
 
 const category = ref('')
 const search = ref('')
@@ -63,6 +65,9 @@ const filteredAvailable = computed<CourseListItem[]>(() => {
       <p class="text-base text-white/60 mt-4 max-w-xl">
         Continue de onde parou ou descubra novos conteúdos.
       </p>
+
+      <!-- Banners (destaques do staff) -->
+      <BannerCarousel v-if="bannerList?.length" :banners="bannerList" class="mt-8" />
 
       <!-- Busca -->
       <div class="relative mt-6 max-w-md">

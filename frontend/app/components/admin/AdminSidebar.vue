@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { BookOpen, Home, LogOut, Users } from 'lucide-vue-next'
+import { BookOpen, Home, Image as ImageIcon, LogOut, Users } from 'lucide-vue-next'
 
 const route = useRoute()
 const { logout } = useAuth()
@@ -9,6 +9,7 @@ const { data: me } = useMe()
 const items = [
   { to: '/admin/courses', label: 'Cursos', icon: BookOpen, match: '/admin/courses' },
   { to: '/admin/users', label: 'Alunos', icon: Users, match: '/admin/users' },
+  { to: '/admin/banners', label: 'Banners', icon: ImageIcon, match: '/admin/banners' },
 ]
 
 const initial = computed(
