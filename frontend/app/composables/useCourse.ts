@@ -43,6 +43,24 @@ export interface CourseProgress {
   percent: number
 }
 
+export interface FormField {
+  key: string
+  label: string
+  type: 'text' | 'textarea' | 'rating' | 'choice'
+  required: boolean
+  options: string[]
+}
+
+export interface CourseForm {
+  id: number
+  title: string
+  description: string
+  fields: FormField[]
+  every_days: number
+  required: boolean
+  is_active: boolean
+}
+
 export const useCourse = () => {
   const api = useApi()
   return {
@@ -53,5 +71,11 @@ export const useCourse = () => {
         method: 'POST',
         body: { watch_seconds, completed },
       }),
+    dueForm: (id: number) =>
+      api<{ form: CourseForm | null }>(`/catalog/courses/${id}/form`),
+    submitForm: (
+      formId: number,
+      body: { answers?: Record<string, unknown>; skipped?: boolean }
+    ) => api(`/catalog/forms/${formId}/responses`, { method: 'POST', body }),
   }
 }

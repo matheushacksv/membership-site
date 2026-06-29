@@ -148,6 +148,32 @@ export interface BulkEnrollmentBody {
   is_active?: boolean
 }
 
+export interface AdminFormField {
+  key?: string
+  label: string
+  type: 'text' | 'textarea' | 'rating' | 'choice'
+  required: boolean
+  options: string[]
+}
+
+export interface AdminCourseForm {
+  id?: number
+  title: string
+  description: string
+  fields: AdminFormField[]
+  every_days: number
+  required: boolean
+  is_active: boolean
+}
+
+export interface FormResponseRow {
+  id: number
+  user_name: string | null
+  user_email: string
+  answers: Record<string, unknown>
+  created_at: string
+}
+
 export const useAdmin = () => {
   const api = useApi()
 
@@ -281,5 +307,13 @@ export const useAdmin = () => {
       api<number[]>('/enrollments/admin/ids', { query: filters }),
     bulkEnrollments: (body: BulkEnrollmentBody) =>
       api<{ affected: number }>('/enrollments/bulk', { method: 'POST', body }),
+
+    // Course form (smart form recorrente)
+    getCourseForm: (course_id: number) =>
+      api<{ form: AdminCourseForm | null }>(`/admin/courses/${course_id}/form`),
+    saveCourseForm: (course_id: number, body: AdminCourseForm) =>
+      api<AdminCourseForm>(`/admin/courses/${course_id}/form`, { method: 'PUT', body }),
+    listFormResponses: (course_id: number) =>
+      api<FormResponseRow[]>(`/admin/courses/${course_id}/form/responses`),
   }
 }
