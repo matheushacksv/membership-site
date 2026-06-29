@@ -128,6 +128,46 @@ def send_new_course_email(user_id: int, course_name: str = ''):
     )
 
 
+def send_external_access_email(user_id: int, course_names: list[str] | None = None):
+    """Notifica um usuário JÁ EXISTENTE que foi matriculado via external_enroll (CRM).
+
+    Um único email cobrindo todos os cursos da chamada (não 1 por curso). Usuário novo
+    NÃO usa isto — recebe o email padrão de definir senha. fail_silently: best-effort.
+    """
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return
+
+    login_url = f'{settings.FRONTEND_URL}/login'
+    forgot_url = f'{settings.FRONTEND_URL}/forgot-password'
+    name = user.name or ''
+    nomes = course_names or []
+    alvo = f'nos cursos: {", ".join(nomes)}' if nomes else 'na plataforma'
+
+    text = (
+        f'Olá {name},\n\n'
+        f'Você foi matriculado {alvo}.\n\n'
+        f'Entre com sua senha em {login_url}.\n'
+        f'Se precisar, redefina a senha em {forgot_url}.'
+    )
+    html = (
+        f'<p>Olá {name},</p>'
+        f'<p>Você foi matriculado {alvo}.</p>'
+        f'<p>Entre com sua senha em <a href="{login_url}">{login_url}</a>.</p>'
+        f'<p>Se precisar, <a href="{forgot_url}">redefina a senha</a>.</p>'
+    )
+
+    send_mail(
+        subject='Você foi matriculado',
+        message=text,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        html_message=html,
+        fail_silently=True,
+    )
+
+
 def send_reset_email(user_id: int, reset_url: str):
     try:
         user = User.objects.get(id=user_id)

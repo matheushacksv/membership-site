@@ -184,7 +184,11 @@ def external_enroll(request, data: ExternalEnrollIn):
             _enroll(user, course, source='crm')
 
     if created:
-        _send_welcome_with_reset(user)
+        _send_welcome_with_reset(user)  # padrão: definir senha (inalterado)
+    elif courses:
+        # Já existia → 1 email de matrícula cobrindo todos os cursos da chamada.
+        # ponytail: existente só notifica se houve matrícula (courses não-vazio).
+        _safe_enqueue('accounts.tasks.send_external_access_email', user.pk, [c.name for c in courses])
 
     return Status(
         200,
