@@ -178,6 +178,24 @@ class CourseUpdateIn(Schema):
     access_days: int | None = None
 
 
+class BannerOut(Schema):
+    id: int
+    title: str
+    image: str | None = None
+    url: str
+    is_active: bool
+
+    @staticmethod
+    def resolve_image(obj) -> str | None:
+        return obj.image.url if obj.image else None
+
+
+class BannerUpdateIn(Schema):
+    title: str | None = None
+    url: str | None = None
+    is_active: bool | None = None
+
+
 class CommentAuthorOut(Schema):
     id: int
     name: str | None

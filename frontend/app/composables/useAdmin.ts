@@ -1,4 +1,4 @@
-import type { CourseListItem } from '~/composables/useCatalog'
+import type { BannerItem, CourseListItem } from '~/composables/useCatalog'
 
 export interface AdminCourse extends CourseListItem {
   created_at?: string
@@ -315,5 +315,16 @@ export const useAdmin = () => {
       api<AdminCourseForm>(`/admin/courses/${course_id}/form`, { method: 'PUT', body }),
     listFormResponses: (course_id: number) =>
       api<FormResponseRow[]>(`/admin/courses/${course_id}/form/responses`),
+
+    // Banners
+    listBanners: () => api<BannerItem[]>('/admin/banners'),
+    createBanner: (fd: FormData) =>
+      api<BannerItem>('/admin/banners', { method: 'POST', body: fd }),
+    updateBanner: (
+      id: number,
+      body: Partial<Pick<BannerItem, 'title' | 'url' | 'is_active'>>
+    ) => api<BannerItem>(`/admin/banners/${id}`, { method: 'PUT', body }),
+    deleteBanner: (id: number) =>
+      api(`/admin/banners/${id}`, { method: 'DELETE' }),
   }
 }

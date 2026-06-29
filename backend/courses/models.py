@@ -130,6 +130,20 @@ class FormResponse(models.Model):
         indexes = [models.Index(fields=['form', 'user', 'created_at'])]
 
 
+class Banner(models.Model):
+    title = models.CharField(max_length=255)  # alt/título interno
+    image = models.ImageField(upload_to='banners/')
+    url = models.URLField(max_length=500)  # destino ao clicar
+    is_active = models.BooleanField(default=False)  # só aparece p/ aluno quando ativado
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']  # mais novo no topo
+
+    def __str__(self) -> str:
+        return self.title
+
+
 class DownloadLog(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='downloads')
     attachment = models.ForeignKey(LessonAttachment, on_delete=models.SET_NULL, null=True, related_name='downloads')
