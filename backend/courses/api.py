@@ -14,16 +14,30 @@ from core.utils.errors import Error
 from core.utils.permissions import staff_required
 from enrollments.models import CourseEnrollment, LessonProgress
 
-from .models import Course, Lesson, LessonAttachment, LessonComment, Module
+from .helpers import _due_form, _has_course_access
+from .models import (
+    Course,
+    CourseForm,
+    FormResponse,
+    Lesson,
+    LessonAttachment,
+    LessonComment,
+    Module,
+)
 from .schemas import (
     CommentIn,
     CommentOut,
     CommentUpdateIn,
     CourseDetailOut,
+    CourseFormIn,
+    CourseFormOut,
     CourseIn,
     CourseListOut,
     CourseOut,
     CourseUpdateIn,
+    DueFormOut,
+    FormResponseAdminOut,
+    FormResponseIn,
     LessonAttachmentIn,
     LessonAttachmentOut,
     LessonAttachmentUpdateIn,
@@ -214,6 +228,44 @@ def delete_comment(request, comment_id: int):
         return Status(403, Error(detail='Forbidden'))
     comment.delete()
     return Status(204, None)
+
+
+# * ----------------------------------------- * #
+# ? ----------- Course Form (aluno) ----------- ? #
+# * ----------------------------------------- * #
+
+
+@catalog_router.get('/courses/{course_id}/form', response={200: DueFormOut})
+def get_due_form(request, course_id: int):
+    if not _has_course_access(request.auth, course_id):
+        return Status(200, {'form': None})
+    course = Course.objects.filter(id=course_id).first()
+    form = _due_form(request.auth, course) if course else None
+    return Status(200, {'form': form})
+
+
+@catalog_router.post('/forms/{form_id}/responses', response={200: dict, 400: Error, 403: Error, 404: Error})
+def submit_form_response(request, form_id: int, data: FormResponseIn):
+    form = get_object_or_404(CourseForm, id=form_id)
+    if not _has_course_access(request.auth, form.course_id):
+        return Status(403, Error(detail='Not enrolled'))
+
+    if not data.skipped:
+        missing = [
+            f.get('label')
+            for f in form.fields
+            if f.get('required') and not str(data.answers.get(f.get('key'), '')).strip()
+        ]
+        if missing:
+            return Status(400, Error(detail=f'Campos obrigatórios: {", ".join(missing)}'))
+
+    FormResponse.objects.create(
+        form=form,
+        user=request.auth,
+        answers={} if data.skipped else data.answers,
+        skipped=data.skipped,
+    )
+    return Status(200, {'ok': True})
 
 
 # * ----------------------------------------- * #
@@ -513,3 +565,53 @@ def delete_attachment(request, attachment_id: int):
     attachment = get_object_or_404(LessonAttachment, id=attachment_id)
     attachment.delete()
     return Status(204, None)
+
+# * ----------------------------------------- * #
+# ? ----------- Forms Endpoints ----------- ? #
+# * ----------------------------------------- * #
+
+
+@admin_router.get('/courses/{course_id}/form', response={200: DueFormOut, 403: Error})
+def get_course_form(request, course_id: int):
+    staff_required(request)
+    form = (
+        CourseForm.objects.filter(course_id=course_id, is_active=True)
+        .order_by('-updated_at')
+        .first()
+    )
+    return Status(200, {'form': form})
+
+
+@admin_router.put('/courses/{course_id}/form', response={200: CourseFormOut, 403: Error, 404: Error})
+def upsert_course_form(request, course_id: int, data: CourseFormIn):
+    staff_required(request)
+    course = get_object_or_404(Course, id=course_id)
+
+    fields = []
+    for i, f in enumerate(data.fields):
+        d = f.dict()
+        d['key'] = d['key'] or f'campo_{i}'  # chave estável p/ casar resposta↔campo
+        if d['type'] != 'choice':
+            d['options'] = []
+        fields.append(d)
+
+    form = course.forms.filter(is_active=True).order_by('-updated_at').first() or CourseForm(course=course)
+    form.title = data.title
+    form.description = data.description
+    form.fields = fields
+    form.every_days = data.every_days
+    form.required = data.required
+    form.is_active = data.is_active
+    form.save()
+    return Status(200, form)
+
+
+@admin_router.get('/courses/{course_id}/form/responses', response={200: list[FormResponseAdminOut], 403: Error})
+def list_form_responses(request, course_id: int):
+    staff_required(request)
+    qs = (
+        FormResponse.objects.filter(form__course_id=course_id, skipped=False)
+        .select_related('user')
+        .order_by('-created_at')
+    )
+    return Status(200, list(qs))

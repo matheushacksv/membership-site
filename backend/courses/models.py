@@ -1,5 +1,6 @@
-from django.db import models
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db import models
 
 
 class Course(models.Model):
@@ -38,11 +39,7 @@ class Module(models.Model):
     class Meta:
         ordering = ['order', 'id']
         indexes = [models.Index(fields=['course', 'order'])]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['course', 'order'], name='uniq_module_order_per_course'
-            )
-        ]
+        constraints = [models.UniqueConstraint(fields=['course', 'order'], name='uniq_module_order_per_course')]
 
     def __str__(self) -> str:
         return self.name
@@ -57,9 +54,7 @@ class Lesson(models.Model):
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='lessons')
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    video_provider = models.CharField(
-        choices=VideoProvider.choices, max_length=255, blank=True, default=''
-    )
+    video_provider = models.CharField(choices=VideoProvider.choices, max_length=255, blank=True, default='')
     video_id = models.CharField(max_length=255, blank=True, default='')
     content = models.TextField(blank=True, default='')
     duration_seconds = models.PositiveIntegerField(default=0)
@@ -72,23 +67,16 @@ class Lesson(models.Model):
         ordering = ['order', 'id']
         indexes = [models.Index(fields=['module', 'order'])]
         constraints = [
-            models.UniqueConstraint(
-                fields=['module', 'order'], name='uniq_lesson_order_per_module'
-            ),
+            models.UniqueConstraint(fields=['module', 'order'], name='uniq_lesson_order_per_module'),
             models.CheckConstraint(
                 name='lesson_video_provider_and_id_together',
-                condition=(
-                    (models.Q(video_provider='') & models.Q(video_id=''))
-                    | (~models.Q(video_provider='') & ~models.Q(video_id=''))
-                ),
+                condition=((models.Q(video_provider='') & models.Q(video_id='')) | (~models.Q(video_provider='') & ~models.Q(video_id=''))),
             ),
         ]
 
 
 class LessonAttachment(models.Model):
-    lesson = models.ForeignKey(
-        Lesson, on_delete=models.CASCADE, related_name='attachments'
-    )
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='attachments')
     title = models.CharField(max_length=255)
     file_url = models.FileField(upload_to='attachments/')
     size_bytes = models.PositiveIntegerField(default=0)
@@ -97,6 +85,7 @@ class LessonAttachment(models.Model):
 
     class Meta:
         ordering = ['order', 'id']
+
 
 class LessonComment(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='comments')
@@ -114,4 +103,28 @@ class LessonComment(models.Model):
         if self.parent and self.parent.parent_id is not None:
             raise ValidationError('Replies just can be replyed by root comments')
 
-        
+
+class CourseForm(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='forms')
+    title = models.CharField(max_length=255, default='')
+    description = models.CharField(max_length=500, blank=True, default='')
+    fields = models.JSONField(default=list)
+    every_days = models.PositiveIntegerField(default=30)
+    required = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
+
+
+class FormResponse(models.Model):
+    form = models.ForeignKey(CourseForm, on_delete=models.CASCADE, related_name='responses')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='form_responses')
+    answers = models.JSONField(default=dict)
+    skipped = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['form', 'user', 'created_at'])]

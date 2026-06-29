@@ -4,9 +4,7 @@ from typing import Literal, Optional, Self
 from ninja import Schema
 from pydantic import Field, model_validator
 
-CategoryLit = Literal[
-    'sales', 'marketing', 'strategy', 'tool', 'customer', 'lifestyle', 'development'
-]
+CategoryLit = Literal['sales', 'marketing', 'strategy', 'tool', 'customer', 'lifestyle', 'development']
 
 
 class CourseListOut(Schema):
@@ -207,3 +205,66 @@ class CommentIn(Schema):
 
 class CommentUpdateIn(Schema):
     body: str = Field(min_length=1, max_length=2000)
+
+
+# Forms
+
+FieldType = Literal['text', 'textarea', 'rating', 'choice']
+
+
+class FormFieldSchema(Schema):
+    key: str = ''
+    label: str
+    type: FieldType
+    required: bool = False
+    options: list[str] = []
+
+
+class CourseFormIn(Schema):
+    title: str = ''
+    description: str = ''
+    fields: list[FormFieldSchema] = []
+    every_days: int = 30
+    required: bool = False
+    is_active: bool = True
+
+    @model_validator(mode='after')
+    def check_fields(self) -> Self:
+        for f in self.fields:
+            if f.type == 'choice' and not [o for o in f.options if o.strip()]:
+                raise ValueError(f'Campo  "{f.label}" (escolha) precisa de opções')
+        return self
+
+
+class CourseFormOut(Schema):
+    id: int
+    title: str
+    description: str
+    fields: list[FormFieldSchema] = []
+    every_days: int
+    required: bool
+    is_active: bool
+
+
+class FormResponseIn(Schema):
+    answers: dict = {}
+    skipped: bool = False
+
+
+class FormResponseAdminOut(Schema):
+    id: int
+    user_name: str | None
+    user_email: str
+    answers: dict
+    created_at: datetime
+
+    @staticmethod
+    def resolve_user_name(obj):
+        return obj.user.name
+
+    @staticmethod
+    def resolve_user_email(obj):
+        return obj.user.email
+
+class DueFormOut(Schema):
+    form: CourseFormOut | None = None

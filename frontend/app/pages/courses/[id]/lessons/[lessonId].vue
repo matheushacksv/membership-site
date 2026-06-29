@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ListVideo, AlertCircle, RefreshCw } from 'lucide-vue-next'
-import type { CourseDetail, Lesson } from '~/composables/useCourse'
+import type { CourseDetail, CourseForm, Lesson } from '~/composables/useCourse'
 
 definePageMeta({ layout: 'course' })
 
@@ -110,6 +110,7 @@ const onProgress = async (seconds: number, duration: number) => {
       await courseApi.markProgress(currentLesson.value.id, Math.floor(seconds), true)
       patchLocalCompleted(currentLesson.value.id)
       refreshNuxtData('home-mine')
+      checkForm()
     } catch { /* silent */ }
   }
 }
@@ -124,6 +125,7 @@ const onEnded = async () => {
     )
     patchLocalCompleted(currentLesson.value.id)
     refreshNuxtData('home-mine')
+    checkForm()
   } catch { /* silent */ }
 }
 
@@ -139,6 +141,7 @@ const toggleComplete = async () => {
     )
     patchLocalCompleted(currentLesson.value.id, target)
     refreshNuxtData('home-mine')
+    if (target) checkForm()
     toast.success(target ? 'Aula concluída' : 'Marcada como não concluída')
   } catch (e: any) {
     toast.error(e?.data?.detail || 'Falha ao atualizar conclusão')
@@ -146,6 +149,55 @@ const toggleComplete = async () => {
     saving.value = false
   }
 }
+
+// Smart form: aparece quando devido (cadência + ≥1 aula concluída). Checa no load e
+// logo após concluir uma aula (gatilho "após concluir aula/módulo").
+const dueForm = ref<CourseForm | null>(null)
+const formModalOpen = ref(false)
+const submittingForm = ref(false)
+const openedFormId = ref<number | null>(null) // evita reabrir o mesmo form a cada conclusão/troca de aula
+
+const checkForm = async () => {
+  try {
+    const { form } = await courseApi.dueForm(courseId.value)
+    dueForm.value = form
+    // abre direto (sem clique), mas só uma vez por form na sessão
+    if (form && form.id !== openedFormId.value) {
+      formModalOpen.value = true
+      openedFormId.value = form.id
+    }
+  } catch { /* silent */ }
+}
+
+const onFormSubmit = async (answers: Record<string, unknown>) => {
+  if (!dueForm.value) return
+  submittingForm.value = true
+  try {
+    await courseApi.submitForm(dueForm.value.id, { answers })
+    formModalOpen.value = false
+    dueForm.value = null
+    toast.success('Obrigado pela resposta!')
+  } catch (e: any) {
+    toast.error(e?.data?.detail || 'Falha ao enviar')
+  } finally {
+    submittingForm.value = false
+  }
+}
+
+// "Depois": registra skip (backend reabre só após 24h).
+const laterForm = async () => {
+  if (!dueForm.value) return
+  const id = dueForm.value.id
+  formModalOpen.value = false
+  dueForm.value = null
+  try { await courseApi.submitForm(id, { skipped: true }) } catch { /* silent */ }
+}
+
+// Fechar pelo X/esc/backdrop = mesmo que "Depois" (grava skip → backend reabre só após 24h).
+// Sem isso, fechar sem gravar fazia o form reaparecer ao trocar de aula (page remonta).
+const closeForm = () => laterForm()
+
+onMounted(checkForm)
 </script>
 
 <template>
@@ -192,6 +244,16 @@ const toggleComplete = async () => {
 
       <CourseCommentsSection :lesson-id="currentLesson.id" />
     </div>
+
+    <CourseFormModal
+      v-if="dueForm"
+      :open="formModalOpen"
+      :form="dueForm"
+      :submitting="submittingForm"
+      @close="closeForm"
+      @later="laterForm"
+      @submit="onFormSubmit"
+    />
   </div>
 
   <!-- Erro -->
