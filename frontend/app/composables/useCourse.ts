@@ -77,5 +77,7 @@ export const useCourse = () => {
       formId: number,
       body: { answers?: Record<string, unknown>; skipped?: boolean }
     ) => api(`/catalog/forms/${formId}/responses`, { method: 'POST', body }),
+    downloadAttachment: (id: number) =>
+      api<Blob>(`/catalog/attachments/${id}/download`, { responseType: 'blob' }),
   }
 }
