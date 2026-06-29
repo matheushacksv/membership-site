@@ -128,3 +128,17 @@ class FormResponse(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['form', 'user', 'created_at'])]
+
+
+class DownloadLog(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='downloads')
+    attachment = models.ForeignKey(LessonAttachment, on_delete=models.SET_NULL, null=True, related_name='downloads')
+    email = models.EmailField()  # snapshot: trilha sobrevive à edição/exclusão do user
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['attachment', 'created_at'])]
+
+    def __str__(self) -> str:
+        return f'{self.email} · {self.created_at:%d/%m/%Y %H:%M}'

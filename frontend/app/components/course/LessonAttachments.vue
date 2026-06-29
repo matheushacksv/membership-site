@@ -5,6 +5,7 @@ import type { LessonAttachment } from '~/composables/useCourse'
 defineProps<{ attachments: LessonAttachment[] }>()
 
 const toast = useToast()
+const courseApi = useCourse()
 const downloading = ref<number | null>(null)
 
 const fmtSize = (b: number) => {
@@ -14,26 +15,15 @@ const fmtSize = (b: number) => {
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 }
 
-const filenameFromUrl = (url: string, fallback: string) => {
-  try {
-    const path = new URL(url).pathname
-    const last = path.split('/').pop() || ''
-    return last || fallback
-  } catch {
-    return fallback
-  }
-}
-
 const handleDownload = async (a: LessonAttachment) => {
   downloading.value = a.id
   try {
-    const res = await fetch(a.file_url)
-    if (!res.ok) throw new Error('fetch failed')
-    const blob = await res.blob()
+    // Baixa via backend (carimba assinatura nome/email/IP + registra DownloadLog).
+    const blob = await courseApi.downloadAttachment(a.id)
     const blobUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = blobUrl
-    link.download = filenameFromUrl(a.file_url, a.title)
+    link.download = a.title
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

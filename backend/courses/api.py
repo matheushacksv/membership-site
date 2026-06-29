@@ -5,6 +5,7 @@ from django.db import models, transaction
 from django.db.models import Count, Exists, F, OuterRef, Prefetch, Subquery
 from django.db.models.query_utils import Q
 from django.db.utils import IntegrityError
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import Router, Status
@@ -14,10 +15,18 @@ from core.utils.errors import Error
 from core.utils.permissions import staff_required
 from enrollments.models import CourseEnrollment, LessonProgress
 
-from .helpers import _due_form, _has_course_access
+from .helpers import (
+    _client_ip,
+    _due_form,
+    _has_course_access,
+    _signature_text,
+    _stamp_image,
+    _stamp_pdf,
+)
 from .models import (
     Course,
     CourseForm,
+    DownloadLog,
     FormResponse,
     Lesson,
     LessonAttachment,
@@ -266,6 +275,33 @@ def submit_form_response(request, form_id: int, data: FormResponseIn):
         skipped=data.skipped,
     )
     return Status(200, {'ok': True})
+
+
+@catalog_router.get('/attachments/{attachment_id}/download', response={403: Error, 404: Error})
+def download_attachment(request, attachment_id: int):
+    att = get_object_or_404(LessonAttachment.objects.select_related('lesson__module'), id=attachment_id)
+    if not _has_course_access(request.auth, att.lesson.module.course_id):
+        return Status(403, Error(detail='Not enrolled'))
+
+    ip = _client_ip(request)
+    DownloadLog.objects.create(user=request.auth, attachment=att, email=request.auth.email, ip=ip or None)
+
+    name = Path(att.file_url.name).name
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    text = _signature_text(request.auth, ip)
+
+    # ponytail: PDF/imagem carregam o arquivo todo em memória (necessário p/ carimbar); resto faz stream.
+    if ext == 'pdf':
+        body, ctype = _stamp_pdf(att.file_url.open('rb').read(), text), 'application/pdf'
+    elif ext in ('jpg', 'jpeg', 'png', 'webp'):
+        body, ctype = _stamp_image(att.file_url.open('rb').read(), text)
+    else:
+        # tipo não carimbável: passa direto. DownloadLog já guarda a trilha forense.
+        return FileResponse(att.file_url.open('rb'), as_attachment=True, filename=att.title or name)
+
+    resp = HttpResponse(body, content_type=ctype)
+    resp['Content-Disposition'] = f'attachment; filename="{att.title or name}"'
+    return resp
 
 
 # * ----------------------------------------- * #
