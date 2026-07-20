@@ -99,6 +99,11 @@ export interface AttachmentItem {
   size_bytes: number
 }
 
+export interface AttachmentLibraryItem extends AttachmentItem {
+  lesson_name: string
+  course_name: string
+}
+
 export interface EnrollmentItem {
   id: number
   user_id: number
@@ -240,6 +245,13 @@ export const useAdmin = () => {
     },
     deleteAttachment: (id: number) =>
       api(`/admin/attachments/${id}`, { method: 'DELETE' }),
+    listAttachmentLibrary: (q = '') =>
+      api<AttachmentLibraryItem[]>('/admin/attachments', { query: { q } }),
+    linkAttachment: (lesson_id: number, attachment_id: number) =>
+      api<AttachmentItem>(`/admin/lessons/${lesson_id}/attachments/link`, {
+        method: 'POST',
+        body: { attachment_id },
+      }),
 
     // Users
     listUsers: (search?: string) =>

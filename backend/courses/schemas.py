@@ -102,6 +102,25 @@ class LessonAttachmentUpdateIn(Schema):
     order: int | None = None
 
 
+class AttachmentLibraryOut(LessonAttachmentOut):
+    """Anexo já existente + de onde ele veio, pro picker do admin."""
+
+    lesson_name: str
+    course_name: str
+
+    @staticmethod
+    def resolve_lesson_name(obj) -> str:
+        return obj.lesson.name
+
+    @staticmethod
+    def resolve_course_name(obj) -> str:
+        return obj.lesson.module.course.name
+
+
+class LinkAttachmentIn(Schema):
+    attachment_id: int
+
+
 class ModuleIn(Schema):
     course_id: int
     name: str

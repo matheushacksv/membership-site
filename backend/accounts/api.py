@@ -53,9 +53,7 @@ def signup(request, data: UserSignup):
     if User.objects.filter(email=data.email).exists():
         return Status(400, Error(detail='User already exists'))
 
-    user = cast(UserManager, User.objects).create_user(
-        email=data.email, password=data.password, name=data.name or ''
-    )
+    user = cast(UserManager, User.objects).create_user(email=data.email, password=data.password, name=data.name or '')
 
     if not user:
         return Status(400, Error(detail='Creation user error'))
@@ -73,9 +71,7 @@ def forgot_password(request, data: ForgotPasswordIn, auth=None):
         token = default_token_generator.make_token(user)
         reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
         async_task('accounts.tasks.send_reset_email', user.pk, reset_url)
-    return Status(
-        200, MessageOut(detail='If the email exists, you will receive a link soon')
-    )
+    return Status(200, MessageOut(detail='If the email exists, you will receive a link soon'))
 
 
 @router.post('/reset-password', response={200: MessageOut, 400: Error}, auth=None)
@@ -113,9 +109,7 @@ def resend_reset(request, data: ResendLinkIn):
     return Status(200, MessageOut(detail='If the account exists, a new link was sent'))
 
 
-@router.get(
-    '/reset-password/validate', response={200: MessageOut, 400: Error}, auth=None
-)
+@router.get('/reset-password/validate', response={200: MessageOut, 400: Error}, auth=None)
 def validate_reset(request, uid: str, token: str):
     try:
         user_id = force_str(urlsafe_base64_decode(uid))
@@ -133,9 +127,7 @@ def new_user_webhook(request, data: NewUserFromWebhook):
     if User.objects.filter(email=data.email).exists():
         return Status(400, Error(detail='User already exists'))
 
-    user = cast(UserManager, User.objects).create_user(
-        email=data.email, password=data.password, name=data.name or ''
-    )
+    user = cast(UserManager, User.objects).create_user(email=data.email, password=data.password, name=data.name or '')
 
     if not user:
         return Status(400, Error(detail='Creation user error'))
@@ -183,9 +175,7 @@ def update_me(request, data: UpdateMeIn):
 
     if data.new_password:
         if len(data.new_password) < 8:
-            return Status(
-                400, Error(detail='Password need to be 8 character long or more')
-            )
+            return Status(400, Error(detail='Password need to be 8 character long or more'))
         if not user.check_password(data.current_password):
             return Status(400, Error(detail='Incorrect password'))
         user.set_password(data.new_password)
@@ -234,12 +224,10 @@ def list_users(request, search: str | None = None):
 @router.post('/admin/users', response={201: UserOut, 400: Error, 409: Error})
 def staff_create_user(request, data: StaffCreateUserIn):
     staff_required(request)
-    if User.objects.filter(email=data.email).exists():
+    if User.objects.filter(email=data.email.strip().lower()).exists():
         return Status(409, Error(detail='User already exists'))
 
-    user = cast(UserManager, User.objects).create_user(
-        email=data.email, password=secrets.token_urlsafe(32), name=data.name or ''
-    )
+    user = cast(UserManager, User.objects).create_user(email=data.email.strip().lower(), password=secrets.token_urlsafe(32), name=data.name or '')
 
     for course_id in data.course_ids:
         if Course.objects.filter(id=course_id).exists():
@@ -253,9 +241,7 @@ def staff_create_user(request, data: StaffCreateUserIn):
     return Status(201, user)
 
 
-@router.post(
-    '/admin/users/{user_id}/resend-welcome', response={200: MessageOut, 404: Error}
-)
+@router.post('/admin/users/{user_id}/resend-welcome', response={200: MessageOut, 404: Error})
 def resend_welcome(request, user_id: int):
     staff_required(request)
 
@@ -283,10 +269,7 @@ def bulk_import_users(request, data: BulkImportIn):
     course_ids = list(data.course_ids)
     group_id = uuid.uuid4().hex
 
-    chunks = [
-        payload[i : i + BULK_CHUNK_SIZE]
-        for i in range(0, len(payload), BULK_CHUNK_SIZE)
-    ]
+    chunks = [payload[i : i + BULK_CHUNK_SIZE] for i in range(0, len(payload), BULK_CHUNK_SIZE)]
     for chunk in chunks:
         async_task(
             'accounts.tasks.bulk_import_task',
@@ -298,15 +281,11 @@ def bulk_import_users(request, data: BulkImportIn):
 
     return Status(
         202,
-        BulkImportQueuedOut(
-            task_id=group_id, total=len(payload), chunks=len(chunks)
-        ),
+        BulkImportQueuedOut(task_id=group_id, total=len(payload), chunks=len(chunks)),
     )
 
 
-@router.get(
-    '/admin/users/bulk-import/{group_id}', response={200: BulkImportStatusOut}
-)
+@router.get('/admin/users/bulk-import/{group_id}', response={200: BulkImportStatusOut})
 def bulk_import_status(request, group_id: str, chunks: int):
     staff_required(request)
 

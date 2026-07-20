@@ -35,6 +35,7 @@ from .models import (
     Module,
 )
 from .schemas import (
+    AttachmentLibraryOut,
     BannerOut,
     BannerUpdateIn,
     CommentIn,
@@ -56,6 +57,7 @@ from .schemas import (
     LessonIn,
     LessonOut,
     LessonUpdateIn,
+    LinkAttachmentIn,
     ModuleIn,
     ModuleOut,
     ModuleUpdateIn,
@@ -554,6 +556,45 @@ def create_attachment(request, data: LessonAttachmentIn):
         file_url=data.file_url,
         size_bytes=data.size_bytes,
         order=data.order,
+    )
+    return Status(201, attachment)
+
+
+@admin_router.get('/attachments', response=list[AttachmentLibraryOut])
+def attachment_library(request, q: str = '', limit: int = 100):
+    """Biblioteca de anexos já enviados, pro admin reaproveitar em outra aula."""
+    staff_required(request)
+
+    qs = LessonAttachment.objects.exclude(file_url='')
+    if q:
+        qs = qs.filter(title__icontains=q)
+
+    # DISTINCT ON (Postgres): 1 linha por arquivo, a mais recente. Sem isso um PDF
+    # reusado em N aulas polui a lista com N entradas idênticas.
+    ids = list(qs.order_by('file_url', '-id').distinct('file_url').values_list('id', flat=True))
+    return (
+        LessonAttachment.objects.filter(id__in=ids)
+        .select_related('lesson__module__course')
+        .order_by('-id')[:limit]
+    )
+
+
+@admin_router.post('/lessons/{lesson_id}/attachments/link', response={201: LessonAttachmentOut, 403: Error, 404: Error})
+def link_attachment(request, lesson_id: int, data: LinkAttachmentIn):
+    staff_required(request)
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    src = get_object_or_404(LessonAttachment, id=data.attachment_id)
+
+    current_max = LessonAttachment.objects.filter(lesson=lesson).aggregate(models.Max('order'))['order__max']
+
+    # ponytail: aponta pra MESMA chave no MinIO (file_url.name), sem re-upload.
+    # Seguro porque delete_attachment só apaga a linha, nunca o objeto do bucket.
+    attachment = LessonAttachment.objects.create(
+        lesson=lesson,
+        title=src.title,
+        file_url=src.file_url.name,
+        size_bytes=src.size_bytes,
+        order=0 if current_max is None else current_max + 1,
     )
     return Status(201, attachment)
 

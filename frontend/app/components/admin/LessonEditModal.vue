@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Loader2, Paperclip, Upload, Trash2, FileText } from 'lucide-vue-next'
+import { Loader2, Paperclip, Upload, Trash2, FileText, FolderOpen } from 'lucide-vue-next'
 import type { AttachmentItem, LessonItem } from '~/composables/useAdmin'
 
 const props = defineProps<{ open: boolean; lessonId: number | null }>()
@@ -13,6 +13,8 @@ const saving = ref(false)
 const attachments = ref<AttachmentItem[]>([])
 const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+const pickerOpen = ref(false)
+const linking = ref(false)
 
 const form = reactive({
   name: '',
@@ -84,6 +86,31 @@ const onPickFile = async (e: Event) => {
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''
+  }
+}
+
+const onPickExisting = async (ids: number[]) => {
+  if (!ids.length || !props.lessonId) return
+
+  // Sequencial pelo mesmo motivo do upload: o endpoint calcula `order` via Max().
+  linking.value = true
+  let ok = 0
+  let failed = 0
+  try {
+    for (const id of ids) {
+      try {
+        const att = await admin.linkAttachment(props.lessonId, id)
+        attachments.value = [...attachments.value, att]
+        ok++
+      } catch (err: any) {
+        toast.error(err?.data?.detail || 'Falha ao adicionar anexo')
+        failed++
+      }
+    }
+    if (ok && !failed) toast.success(ok === 1 ? 'Anexo adicionado' : `${ok} anexos adicionados`)
+    else if (ok) toast.success(`${ok} adicionado(s), ${failed} com erro`)
+  } finally {
+    linking.value = false
   }
 }
 
@@ -189,16 +216,28 @@ const save = async () => {
             <Paperclip class="w-3.5 h-3.5" />
             Anexos
           </label>
-          <button
-            type="button"
-            :disabled="uploading"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-orange-300 hover:text-orange-200 hover:bg-orange-500/10 border border-orange-500/30 rounded-md disabled:opacity-50"
-            @click="fileInput?.click()"
-          >
-            <Loader2 v-if="uploading" class="w-3 h-3 animate-spin" />
-            <Upload v-else class="w-3 h-3" />
-            Enviar
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              :disabled="linking"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-neutral-300 hover:text-white hover:bg-white/5 border border-white/15 rounded-md disabled:opacity-50"
+              @click="pickerOpen = true"
+            >
+              <Loader2 v-if="linking" class="w-3 h-3 animate-spin" />
+              <FolderOpen v-else class="w-3 h-3" />
+              Escolher
+            </button>
+            <button
+              type="button"
+              :disabled="uploading"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-orange-300 hover:text-orange-200 hover:bg-orange-500/10 border border-orange-500/30 rounded-md disabled:opacity-50"
+              @click="fileInput?.click()"
+            >
+              <Loader2 v-if="uploading" class="w-3 h-3 animate-spin" />
+              <Upload v-else class="w-3 h-3" />
+              Enviar
+            </button>
+          </div>
           <input
             ref="fileInput"
             type="file"
@@ -252,5 +291,11 @@ const save = async () => {
         </button>
       </div>
     </form>
+
+    <AdminAttachmentPickerModal
+      :open="pickerOpen"
+      @close="pickerOpen = false"
+      @pick="onPickExisting"
+    />
   </AdminModal>
 </template>
