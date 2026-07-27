@@ -147,6 +147,7 @@ class ModuleOut(Schema):
     name: str
     order: int
     is_published: bool = False
+    requires_previous: bool = False
     locked: bool = False
     lesson_count: int = 0
     lessons: list[LessonOut] = []
