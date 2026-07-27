@@ -40,6 +40,7 @@ class LessonAttachmentOut(Schema):
 class LessonOut(Schema):
     id: int
     name: str
+    kind: str = 'video'
     description: str | None
     video_provider: str | None
     video_id: str | None
@@ -58,6 +59,7 @@ class LessonOut(Schema):
 class LessonIn(Schema):
     module_id: int
     name: str
+    kind: Literal['video', 'quiz'] = 'video'
     description: str | None = None
     video_provider: Literal['', 'youtube', 'vimeo', 'panda'] = ''
     video_id: str | None = None
@@ -68,7 +70,8 @@ class LessonIn(Schema):
 
     @model_validator(mode='after')
     def at_least_one_content(self) -> Self:
-        if not self.video_id and not self.content:
+        # Aula de exercício não tem vídeo nem conteúdo: o conteúdo dela são as perguntas.
+        if not self.video_id and not self.content and self.kind != 'quiz':
             if self.is_published:
                 raise ValueError('Lesson need a video, content or material')
         if bool(self.video_provider) != bool(self.video_id):
@@ -78,6 +81,7 @@ class LessonIn(Schema):
 
 class LessonUpdateIn(Schema):
     name: str | None = None
+    kind: Literal['video', 'quiz'] | None = None
     description: str | None = None
     video_provider: str | None = None
     video_id: str | None = None
@@ -305,3 +309,77 @@ class FormResponseAdminOut(Schema):
 
 class DueFormOut(Schema):
     form: CourseFormOut | None = None
+
+
+# Quiz (aula de exercício)
+
+
+class QuizQuestionOut(Schema):
+    """O que o aluno recebe ANTES de responder. Sem `correct`/`explanation` de propósito:
+    o que sai daqui está no devtools dele."""
+
+    key: str
+    prompt: str
+    options: list[str] = []
+
+
+class QuizQuestionIn(Schema):
+    """Pergunta completa — só trafega em rota staff."""
+
+    key: str = ''
+    prompt: str
+    options: list[str] = []
+    correct: int = 0
+    explanation: str = ''
+
+    @model_validator(mode='after')
+    def check_options(self) -> Self:
+        opts = [o for o in self.options if o.strip()]
+        if len(opts) < 2:
+            raise ValueError(f'"{self.prompt}" precisa de ao menos 2 opções')
+        if not 0 <= self.correct < len(opts):
+            raise ValueError(f'"{self.prompt}": gabarito fora das opções')
+        return self
+
+
+class QuizSaveIn(Schema):
+    questions: list[QuizQuestionIn] = []
+
+
+class QuizSubmitIn(Schema):
+    answers: dict[str, int] = {}
+
+
+class QuizResultItem(Schema):
+    key: str
+    correct: int
+    chosen: int | None = None
+    explanation: str = ''
+
+
+class QuizResultOut(Schema):
+    score: int
+    total: int
+    results: list[QuizResultItem] = []
+
+
+class QuizStateOut(Schema):
+    questions: list[QuizQuestionOut] = []
+    attempt: QuizResultOut | None = None
+
+
+class QuizResponseAdminOut(Schema):
+    user_name: str | None
+    user_email: str
+    score: int
+    total: int
+    answers: dict
+    updated_at: datetime
+
+    @staticmethod
+    def resolve_user_name(obj):
+        return obj.user.name
+
+    @staticmethod
+    def resolve_user_email(obj):
+        return obj.user.email

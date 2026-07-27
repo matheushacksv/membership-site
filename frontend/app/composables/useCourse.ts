@@ -8,6 +8,7 @@ export interface LessonAttachment {
 export interface Lesson {
   id: number
   name: string
+  kind: string
   description: string | null
   video_provider: string | null
   video_id: string | null
@@ -61,10 +62,43 @@ export interface CourseForm {
   is_active: boolean
 }
 
+// Quiz (aula de exercício). O aluno recebe as perguntas SEM gabarito antes de responder;
+// `correct`/`explanation` só chegam dentro do resultado, corrigido no servidor.
+export interface QuizQuestion {
+  key: string
+  prompt: string
+  options: string[]
+}
+
+export interface QuizResultItem {
+  key: string
+  correct: number
+  chosen: number | null
+  explanation: string
+}
+
+export interface QuizResult {
+  score: number
+  total: number
+  results: QuizResultItem[]
+}
+
+export interface QuizState {
+  questions: QuizQuestion[]
+  attempt: QuizResult | null
+}
+
 export const useCourse = () => {
   const api = useApi()
   return {
     detail: (id: number) => api<CourseDetail>(`/catalog/courses/${id}`),
+    getQuiz: (lessonId: number) =>
+      api<QuizState>(`/catalog/lessons/${lessonId}/quiz`),
+    submitQuiz: (lessonId: number, answers: Record<string, number>) =>
+      api<QuizResult>(`/catalog/lessons/${lessonId}/quiz`, {
+        method: 'POST',
+        body: { answers },
+      }),
     progress: (id: number) => api<CourseProgress>(`/enrollments/me/courses/${id}/progress`),
     markProgress: (lessonId: number, watch_seconds: number, completed: boolean) =>
       api(`/enrollments/me/lessons/${lessonId}/progress`, {

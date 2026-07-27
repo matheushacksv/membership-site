@@ -5,6 +5,7 @@ import {
   Trash2,
   Video,
   FileText,
+  ListChecks,
   Eye,
   EyeOff,
 } from 'lucide-vue-next'
@@ -22,7 +23,7 @@ const emit = defineEmits<{ edit: []; remove: []; togglePublish: [] }>()
       class="lesson-handle w-4 h-4 text-neutral-700 group-hover:text-neutral-400 cursor-grab shrink-0"
     />
     <component
-      :is="lesson.video_id ? Video : FileText"
+      :is="lesson.kind === 'quiz' ? ListChecks : lesson.video_id ? Video : FileText"
       class="w-3.5 h-3.5 text-neutral-500 shrink-0"
     />
     <span class="flex-1 text-sm text-white truncate">{{ lesson.name }}</span>

@@ -129,6 +129,15 @@ const onEnded = async () => {
   } catch { /* silent */ }
 }
 
+// Quiz: o submit já gravou LessonProgress no servidor (submit_lesson_quiz). Aqui só
+// sincroniza a UI, igual ao onEnded do vídeo.
+const onQuizCompleted = () => {
+  if (!currentLesson.value) return
+  patchLocalCompleted(currentLesson.value.id)
+  refreshNuxtData('home-mine')
+  checkForm()
+}
+
 const toggleComplete = async () => {
   if (!currentLesson.value) return
   const target = !currentLesson.value.completed
@@ -219,7 +228,13 @@ onMounted(checkForm)
         Aulas
       </button>
 
+      <CourseQuizPanel
+        v-if="currentLesson.kind === 'quiz'"
+        :lesson-id="currentLesson.id"
+        @completed="onQuizCompleted"
+      />
       <CourseVideoPlayer
+        v-else
         :provider="currentLesson.video_provider"
         :video-id="currentLesson.video_id"
         @progress="onProgress"

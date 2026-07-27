@@ -35,6 +35,7 @@ export interface LessonItem {
   id: number
   module_id: number
   name: string
+  kind?: 'video' | 'quiz'
   description?: string | null
   video_provider?: string | null
   video_id?: string | null
@@ -46,6 +47,7 @@ export interface LessonItem {
 export interface LessonInput {
   module_id: number
   name: string
+  kind?: 'video' | 'quiz'
   description?: string | null
   video_provider?: string | null
   video_id?: string | null
@@ -102,6 +104,24 @@ export interface AttachmentItem {
 export interface AttachmentLibraryItem extends AttachmentItem {
   lesson_name: string
   course_name: string
+}
+
+// Pergunta completa (com gabarito) — só trafega em rota staff.
+export interface AdminQuizQuestion {
+  key?: string
+  prompt: string
+  options: string[]
+  correct: number
+  explanation: string
+}
+
+export interface QuizResponseRow {
+  user_name: string | null
+  user_email: string
+  score: number
+  total: number
+  answers: Record<string, number>
+  updated_at: string
 }
 
 export interface EnrollmentItem {
@@ -230,6 +250,17 @@ export const useAdmin = () => {
         method: 'PATCH',
         body: order,
       }),
+
+    // Quiz (aula de exercício)
+    getLessonQuiz: (lesson_id: number) =>
+      api<AdminQuizQuestion[]>(`/admin/lessons/${lesson_id}/quiz`),
+    saveLessonQuiz: (lesson_id: number, questions: AdminQuizQuestion[]) =>
+      api<AdminQuizQuestion[]>(`/admin/lessons/${lesson_id}/quiz`, {
+        method: 'PUT',
+        body: { questions },
+      }),
+    listQuizResponses: (lesson_id: number) =>
+      api<QuizResponseRow[]>(`/admin/lessons/${lesson_id}/quiz/responses`),
 
     // Attachments
     listAttachments: (lesson_id: number) =>

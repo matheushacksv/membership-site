@@ -51,8 +51,14 @@ class Lesson(models.Model):
         VIMEO = 'vimeo', 'Vimeo'
         PANDA = 'panda', 'Panda'
 
+    class Kind(models.TextChoices):
+        VIDEO = 'video', 'Vídeo'
+        QUIZ = 'quiz', 'Exercício'
+
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='lessons')
     name = models.CharField(max_length=255)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.VIDEO)
+    questions = models.JSONField(default=list, blank=True)  # [{key, prompt, options, correct, explanation}]
     description = models.TextField(blank=True)
     video_provider = models.CharField(choices=VideoProvider.choices, max_length=255, blank=True, default='')
     video_id = models.CharField(max_length=255, blank=True, default='')
@@ -128,6 +134,25 @@ class FormResponse(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['form', 'user', 'created_at'])]
+
+
+class QuizAttempt(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='quiz_attempts')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='quiz_attempts')
+    answers = models.JSONField(default=dict)  # {key: índice escolhido}
+    score = models.PositiveIntegerField(default=0)
+    total = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        # ponytail: 1 linha por aluno/aula, sempre a última tentativa (update_or_create).
+        # Histórico some. Se um dia quiserem ver evolução: derruba a constraint e a tela
+        # de respostas passa a usar DISTINCT ON (lesson, user).
+        constraints = [models.UniqueConstraint(fields=['lesson', 'user'], name='uniq_quiz_attempt_per_user')]
+
+    def __str__(self) -> str:
+        return f'{self.user_id} · {self.lesson_id} · {self.score}/{self.total}'
 
 
 class Banner(models.Model):
