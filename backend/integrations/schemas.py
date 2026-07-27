@@ -13,3 +13,17 @@ class ExternalEnrollOut(Schema):
     user_created: bool
     enrolled_course_ids: list[int]
     skipped_course_ids: list[int]
+
+
+class EvolutionConfigIn(Schema):
+    base_url: str = ''
+    instance: str = ''
+    api_key: str = ''
+    is_active: bool = False
+
+
+class EvolutionConfigOut(Schema):
+    base_url: str
+    instance: str
+    api_key: str
+    is_active: bool

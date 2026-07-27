@@ -46,6 +46,7 @@ class UserOut(Schema):
 class StaffCreateUserIn(Schema):
     email: EmailStr
     name: str | None = None
+    phone: str | None = None
     course_ids: list[int] = []
 
 

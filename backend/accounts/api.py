@@ -1,8 +1,10 @@
+import logging
 import secrets
 import uuid
 from datetime import timedelta
 from pathlib import Path
 from typing import cast
+from urllib.parse import quote
 
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -48,11 +50,24 @@ from .schemas import (
 )
 
 ALLOWED = {'image/jpeg', 'image/png', 'image/webp'}
+logger = logging.getLogger(__name__)
+
 MAX_BYTES = 2 * 1024 * 1024  # 2MB
 MAGIC_LINK_SALT = 'magic-login'
 MAGIC_LINK_MAX_AGE = 60 * 60 * 24  # 24h
 
 router = Router(tags=['Users'])
+
+
+def build_magic_login_url(user: User) -> str:
+    """URL de login automático (24h). Reusada pelo endpoint staff e pela task de
+    WhatsApp (integrations.tasks.send_whatsapp_access). Stateless — nada no banco.
+
+    Token vai URL-encodado: signing.dumps usa ':' como separador, e o WhatsApp corta
+    o auto-link nesse ':'. quote() encoda o ':' (→ %3A); browser/Vue Router decodam de
+    volta em route.query.token antes do signing.loads, então o roundtrip é preservado."""
+    token = signing.dumps(user.pk, salt=MAGIC_LINK_SALT)
+    return f'{settings.FRONTEND_URL}/magic?token={quote(token, safe="")}'
 
 
 @router.post('/register', response={201: TokenOut, 400: Error}, auth=None)
@@ -255,6 +270,11 @@ def staff_create_user(request, data: StaffCreateUserIn):
 
     user = cast(UserManager, User.objects).create_user(email=data.email.strip().lower(), password=secrets.token_urlsafe(32), name=data.name or '')
 
+    phone = (data.phone or '').strip()
+    if phone:
+        user.phone = phone
+        user.save(update_fields=['phone'])
+
     for course_id in data.course_ids:
         if Course.objects.filter(id=course_id).exists():
             CourseEnrollment.objects.get_or_create(user=user, course_id=course_id)
@@ -263,6 +283,13 @@ def staff_create_user(request, data: StaffCreateUserIn):
     token = default_token_generator.make_token(user)
     reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
     async_task('accounts.tasks.send_welcome_email_with_reset', user.pk, reset_url)
+    # Reforço via WhatsApp (best-effort): a task guarda config/phone; enfileira só se
+    # tem telefone. Falha de broker não pode derrubar a criação do aluno.
+    if phone:
+        try:
+            async_task('integrations.tasks.send_whatsapp_access', user.pk)
+        except Exception:
+            logger.exception('Falha ao enfileirar whatsapp de acesso')
 
     return Status(201, user)
 
@@ -287,8 +314,7 @@ def generate_login_link(request, user_id: int):
     staff_required(request)
     user = get_object_or_404(User, id=user_id)
 
-    token = signing.dumps(user.pk, salt=MAGIC_LINK_SALT)
-    url = f'{settings.FRONTEND_URL}/magic?token={token}'
+    url = build_magic_login_url(user)
     expires_at = timezone.now() + timedelta(seconds=MAGIC_LINK_MAX_AGE)
     return Status(200, MagicLinkOut(url=url, expires_at=expires_at))
 

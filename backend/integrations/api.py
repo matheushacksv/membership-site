@@ -17,7 +17,13 @@ from core.utils.permissions import staff_required
 from courses.models import Course
 from enrollments.models import CourseEnrollment
 from enrollments.services import expiry_from_days
-from integrations.schemas import ExternalEnrollIn, ExternalEnrollOut
+from integrations.models import EvolutionConfig
+from integrations.schemas import (
+    EvolutionConfigIn,
+    EvolutionConfigOut,
+    ExternalEnrollIn,
+    ExternalEnrollOut,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +34,24 @@ router = Router(tags=['Integrations'])
 def kiwify_config(request):
     staff_required(request)
     return Status(200, {'token': settings.KIWIFY_WEBHOOK_TOKEN or ''})
+
+
+@router.get('/evolution/config', response={200: EvolutionConfigOut, 403: Error})
+def get_evolution_config(request):
+    staff_required(request)
+    return Status(200, EvolutionConfig.load())
+
+
+@router.put('/evolution/config', response={200: EvolutionConfigOut, 403: Error})
+def update_evolution_config(request, data: EvolutionConfigIn):
+    staff_required(request)
+    cfg = EvolutionConfig.load()
+    cfg.base_url = data.base_url.strip()
+    cfg.instance = data.instance.strip()
+    cfg.api_key = data.api_key.strip()
+    cfg.is_active = data.is_active
+    cfg.save()
+    return Status(200, cfg)
 
 
 APPROVED = {'order_approved'}
@@ -81,6 +105,10 @@ def _send_welcome_with_reset(user: User) -> None:
     token = default_token_generator.make_token(user)
     reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
     _safe_enqueue('accounts.tasks.send_welcome_email_with_reset', user.pk, reset_url)
+    # Reforço via WhatsApp p/ aluno novo com telefone (Kiwify + CRM passam por aqui).
+    # Task guarda config/phone; só enfileira se tem telefone. Best-effort (_safe_enqueue).
+    if user.phone:
+        _safe_enqueue('integrations.tasks.send_whatsapp_access', user.pk)
 
 
 def _handle_approved(email: str, name: str, phone: str, course: Course, order_id: str):

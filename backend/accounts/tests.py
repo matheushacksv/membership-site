@@ -1,4 +1,5 @@
 from unittest import mock
+from urllib.parse import unquote
 
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -33,7 +34,8 @@ class MagicLoginTests(TestCase):
         )
         self.assertEqual(res.status_code, 200)
         url = res.json()['url']
-        token = url.split('token=', 1)[1]
+        # token vai URL-encodado na URL; browser/Vue decodam antes do consume
+        token = unquote(url.split('token=', 1)[1])
 
         res = self._post(token)
         self.assertEqual(res.status_code, 200)

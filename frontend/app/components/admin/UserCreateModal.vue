@@ -11,6 +11,7 @@ const toast = useToast()
 const form = reactive({
   email: '',
   name: '',
+  phone: '',
   course_ids: [] as number[],
 })
 
@@ -19,6 +20,7 @@ const saving = ref(false)
 const reset = () => {
   form.email = ''
   form.name = ''
+  form.phone = ''
   form.course_ids = []
 }
 
@@ -31,6 +33,7 @@ const submit = async () => {
     await admin.createUser({
       email: form.email,
       name: form.name || null,
+      phone: form.phone || null,
       course_ids: form.course_ids,
     })
     toast.success('Aluno criado e email enviado')
@@ -70,6 +73,16 @@ const toggleCourse = (id: number) => {
           v-model="form.name"
           type="text"
           placeholder="Opcional"
+          class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
+        >
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Telefone</label>
+        <input
+          v-model="form.phone"
+          type="tel"
+          placeholder="(11) 99999-8888 — opcional, para WhatsApp"
           class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
         >
       </div>

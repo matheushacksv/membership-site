@@ -73,7 +73,15 @@ export interface AdminUser {
 export interface StaffCreateUserBody {
   email: string
   name?: string | null
+  phone?: string | null
   course_ids?: number[]
+}
+
+export interface EvolutionConfig {
+  base_url: string
+  instance: string
+  api_key: string
+  is_active: boolean
 }
 
 export interface BulkImportBody {
@@ -369,6 +377,15 @@ export const useAdmin = () => {
       api<AdminCourseForm>(`/admin/courses/${course_id}/form`, { method: 'PUT', body }),
     listFormResponses: (course_id: number) =>
       api<FormResponseRow[]>(`/admin/courses/${course_id}/form/responses`),
+
+    // Integrações — Evolution API (WhatsApp)
+    getEvolutionConfig: () =>
+      api<EvolutionConfig>('/integrations/evolution/config'),
+    saveEvolutionConfig: (body: EvolutionConfig) =>
+      api<EvolutionConfig>('/integrations/evolution/config', {
+        method: 'PUT',
+        body,
+      }),
 
     // Banners
     listBanners: () => api<BannerItem[]>('/admin/banners'),
