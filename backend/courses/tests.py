@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from django.test import TestCase
 
-from .api import attachment_library, link_attachment
+from .api import _quiz_result, attachment_library, link_attachment
 from .models import Course, Lesson, LessonAttachment, Module
 from .schemas import LinkAttachmentIn
 
@@ -57,3 +57,24 @@ class LinkAttachmentTests(TestCase):
         self.assertEqual(sorted(names), ['attachments/abc123.pdf', 'attachments/zzz.pdf'])
 
         self.assertEqual([a.title for a in attachment_library(self.request, q='Outro')], ['Outro.pdf'])
+
+
+class QuizScoringTests(TestCase):
+    """Correção do quiz: acerto casa chosen==correct; sem resposta conta erro."""
+
+    questions = [
+        {'key': 'q0', 'prompt': 'a', 'options': ['x', 'y'], 'correct': 0, 'explanation': 'porque x'},
+        {'key': 'q1', 'prompt': 'b', 'options': ['x', 'y'], 'correct': 1, 'explanation': ''},
+        {'key': 'q2', 'prompt': 'c', 'options': ['x', 'y'], 'correct': 0, 'explanation': ''},
+    ]
+
+    def test_score_conta_so_acertos(self):
+        # q0 certo, q1 errado, q2 sem resposta (chosen=None).
+        result = _quiz_result(self.questions, {'q0': 0, 'q1': 0})
+
+        self.assertEqual(result.total, 3)
+        self.assertEqual(result.score, 1)
+        por_key = {r.key: r for r in result.results}
+        self.assertEqual(por_key['q0'].chosen, 0)
+        self.assertIsNone(por_key['q2'].chosen)  # sem resposta → erro, não crash
+        self.assertEqual(por_key['q0'].explanation, 'porque x')

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Loader2, Paperclip, Upload, Trash2, FileText, FolderOpen } from 'lucide-vue-next'
-import type { AttachmentItem, LessonItem } from '~/composables/useAdmin'
+import { Loader2, Paperclip, Upload, Trash2, FileText, FolderOpen, Video, ListChecks, BarChart3 } from 'lucide-vue-next'
+import type { AdminQuizQuestion, AttachmentItem, LessonItem } from '~/composables/useAdmin'
 
 const props = defineProps<{ open: boolean; lessonId: number | null }>()
 const emit = defineEmits<{ close: []; saved: [lesson: LessonItem] }>()
@@ -15,9 +15,12 @@ const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const pickerOpen = ref(false)
 const linking = ref(false)
+const questions = ref<AdminQuizQuestion[]>([])
+const responsesOpen = ref(false)
 
 const form = reactive({
   name: '',
+  kind: 'video' as 'video' | 'quiz',
   description: '',
   video_provider: '' as string | null,
   video_id: '',
@@ -41,11 +44,13 @@ watch(
     try {
       const l = await admin.getLesson(id)
       form.name = l.name
+      form.kind = l.kind === 'quiz' ? 'quiz' : 'video'
       form.description = l.description || ''
       form.video_provider = l.video_provider || ''
       form.video_id = l.video_id || ''
       form.content = l.content || ''
       form.is_published = l.is_published
+      questions.value = form.kind === 'quiz' ? await admin.getLessonQuiz(id) : []
       await loadAttachments(id)
     } catch (e: any) {
       toast.error(e?.data?.detail || 'Falha ao carregar')
@@ -139,12 +144,16 @@ const save = async () => {
   try {
     const updated = await admin.updateLesson(props.lessonId, {
       name: form.name,
+      kind: form.kind,
       description: form.description || null,
       video_provider: form.video_provider || null,
       video_id: form.video_id || null,
       content: form.content || null,
       is_published: form.is_published,
     })
+    // Perguntas vão num PUT separado; o backend valida (≥2 opções, gabarito no range)
+    // e devolve 422 → cai no catch e vira toast.
+    if (form.kind === 'quiz') await admin.saveLessonQuiz(props.lessonId, questions.value)
     toast.success('Aula salva')
     emit('saved', updated)
     emit('close')
@@ -181,6 +190,31 @@ const save = async () => {
         >
       </div>
 
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Tipo de aula</label>
+        <div class="inline-flex rounded-lg border border-white/10 overflow-hidden">
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider"
+            :class="form.kind === 'video' ? 'bg-orange-500 text-white' : 'text-neutral-400 hover:text-white'"
+            @click="form.kind = 'video'"
+          >
+            <Video class="w-3.5 h-3.5" />
+            Vídeo
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider"
+            :class="form.kind === 'quiz' ? 'bg-orange-500 text-white' : 'text-neutral-400 hover:text-white'"
+            @click="form.kind = 'quiz'"
+          >
+            <ListChecks class="w-3.5 h-3.5" />
+            Exercício
+          </button>
+        </div>
+      </div>
+
+      <div v-if="form.kind === 'video'" class="space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Provedor de vídeo</label>
@@ -208,6 +242,22 @@ const save = async () => {
       <div>
         <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Conteúdo (texto)</label>
         <AdminRichTextEditor v-model="form.content" />
+      </div>
+      </div>
+
+      <div v-else class="space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold uppercase tracking-wider text-neutral-400">Perguntas</label>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-neutral-300 hover:text-white hover:bg-white/5 border border-white/15 rounded-md"
+            @click="responsesOpen = true"
+          >
+            <BarChart3 class="w-3 h-3" />
+            Ver respostas
+          </button>
+        </div>
+        <AdminQuizEditor v-model="questions" />
       </div>
 
       <div class="pt-2 border-t border-white/5">
@@ -296,6 +346,12 @@ const save = async () => {
       :open="pickerOpen"
       @close="pickerOpen = false"
       @pick="onPickExisting"
+    />
+
+    <AdminQuizResponsesModal
+      :open="responsesOpen"
+      :lesson-id="lessonId"
+      @close="responsesOpen = false"
     />
   </AdminModal>
 </template>

@@ -33,6 +33,7 @@ from .models import (
     LessonAttachment,
     LessonComment,
     Module,
+    QuizAttempt,
 )
 from .schemas import (
     AttachmentLibraryOut,
@@ -61,6 +62,12 @@ from .schemas import (
     ModuleIn,
     ModuleOut,
     ModuleUpdateIn,
+    QuizQuestionIn,
+    QuizResponseAdminOut,
+    QuizResultOut,
+    QuizSaveIn,
+    QuizStateOut,
+    QuizSubmitIn,
 )
 
 catalog_router = Router(tags=['Catalog'])
@@ -282,6 +289,68 @@ def submit_form_response(request, form_id: int, data: FormResponseIn):
     return Status(200, {'ok': True})
 
 
+# * ----------------------------------------- * #
+# ? ------------- Quiz (aluno) --------------- ? #
+# * ----------------------------------------- * #
+
+
+def _quiz_result(questions: list[dict], answers: dict) -> QuizResultOut:
+    """Corrige. Só roda no servidor — é aqui que o gabarito aparece pela primeira vez."""
+    results = [
+        {
+            'key': q['key'],
+            'correct': q['correct'],
+            'chosen': answers.get(q['key']),
+            'explanation': q.get('explanation', ''),
+        }
+        for q in questions
+    ]
+    score = sum(1 for r in results if r['chosen'] == r['correct'])
+    return QuizResultOut(score=score, total=len(questions), results=results)
+
+
+@catalog_router.get('/lessons/{lesson_id}/quiz', response={200: QuizStateOut, 403: Error, 404: Error})
+def get_lesson_quiz(request, lesson_id: int):
+    lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
+    if not _has_course_access(request.auth, lesson.module.course_id):
+        return Status(403, Error(detail='Not enrolled'))
+
+    questions = lesson.questions or []
+    attempt = QuizAttempt.objects.filter(lesson=lesson, user=request.auth).first()
+    # QuizQuestionOut derruba correct/explanation; a tentativa anterior já pode trazer
+    # o gabarito porque o aluno já respondeu.
+    return Status(200, {
+        'questions': questions,
+        'attempt': _quiz_result(questions, attempt.answers) if attempt else None,
+    })
+
+
+@catalog_router.post('/lessons/{lesson_id}/quiz', response={200: QuizResultOut, 400: Error, 403: Error, 404: Error})
+def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
+    lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
+    if not _has_course_access(request.auth, lesson.module.course_id):
+        return Status(403, Error(detail='Not enrolled'))
+
+    questions = lesson.questions or []
+    if not questions:
+        return Status(400, Error(detail='Aula sem perguntas'))
+
+    result = _quiz_result(questions, data.answers)
+    QuizAttempt.objects.update_or_create(
+        lesson=lesson,
+        user=request.auth,
+        defaults={'answers': data.answers, 'score': result.score, 'total': result.total},
+    )
+
+    # Responder conclui a aula. `last_watched_at` é auto_now, não precisa passar.
+    LessonProgress.objects.update_or_create(
+        user=request.auth,
+        lesson=lesson,
+        defaults={'completed_at': timezone.now()},
+    )
+    return Status(200, result)
+
+
 @catalog_router.get('/attachments/{attachment_id}/download', response={403: Error, 404: Error})
 def download_attachment(request, attachment_id: int):
     att = get_object_or_404(LessonAttachment.objects.select_related('lesson__module'), id=attachment_id)
@@ -476,6 +545,7 @@ def create_lesson(request, data: LessonIn):
         lesson = Lesson.objects.create(
             module_id=data.module_id,
             name=data.name,
+            kind=data.kind,
             description=data.description or '',
             video_provider=data.video_provider or '',
             video_id=data.video_id or '',
@@ -699,6 +769,42 @@ def list_form_responses(request, course_id: int):
         .select_related('user')
         .order_by('-created_at')
     )
+    return Status(200, list(qs))
+
+
+# * ----------------------------------------- * #
+# ? ----------- Quiz Endpoints (admin) ------ ? #
+# * ----------------------------------------- * #
+
+
+@admin_router.get('/lessons/{lesson_id}/quiz', response={200: list[QuizQuestionIn], 403: Error, 404: Error})
+def get_lesson_quiz_admin(request, lesson_id: int):
+    staff_required(request)
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    return Status(200, lesson.questions or [])
+
+
+@admin_router.put('/lessons/{lesson_id}/quiz', response={200: list[QuizQuestionIn], 403: Error, 404: Error})
+def save_lesson_quiz(request, lesson_id: int, data: QuizSaveIn):
+    staff_required(request)
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+
+    questions = []
+    for i, q in enumerate(data.questions):
+        d = q.dict()
+        d['key'] = d['key'] or f'q_{i}'  # chave estável p/ casar resposta↔pergunta
+        d['options'] = [o for o in d['options'] if o.strip()]
+        questions.append(d)
+
+    lesson.questions = questions
+    lesson.save(update_fields=['questions', 'updated_at'])
+    return Status(200, questions)
+
+
+@admin_router.get('/lessons/{lesson_id}/quiz/responses', response={200: list[QuizResponseAdminOut], 403: Error})
+def list_quiz_responses(request, lesson_id: int):
+    staff_required(request)
+    qs = QuizAttempt.objects.filter(lesson_id=lesson_id).select_related('user').order_by('-updated_at')
     return Status(200, list(qs))
 
 
