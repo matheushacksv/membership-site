@@ -308,6 +308,8 @@ export const useAdmin = () => {
       api<AdminUser>('/auth/admin/users', { method: 'POST', body }),
     updateUser: (id: number, body: { name?: string; email?: string }) =>
       api<AdminUser>(`/auth/admin/users/${id}`, { method: 'PUT', body }),
+    deleteUser: (id: number) =>
+      api(`/auth/admin/users/${id}`, { method: 'DELETE' }),
     resendWelcome: (id: number) =>
       api<{ detail: string }>(`/auth/admin/users/${id}/resend-welcome`, {
         method: 'POST',

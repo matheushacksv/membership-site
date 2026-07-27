@@ -399,3 +399,16 @@ def staff_edit_user(request, user_id: int, data: StaffUpdateUser):
 
     user.save()
     return Status(200, user)
+
+
+@router.delete('/admin/users/{user_id}', response={200: MessageOut, 400: Error, 403: Error, 404: Error})
+def staff_delete_user(request, user_id: int):
+    staff_required(request)
+    if user_id == request.auth.id:
+        return Status(400, Error(detail='Não é possível excluir a própria conta.'))
+
+    user = get_object_or_404(User, id=user_id)
+    if user.avatar:
+        user.avatar.delete(save=False)  # Django não apaga o arquivo no delete do model
+    user.delete()  # cascade: matrículas, progresso, comentários, respostas
+    return Status(200, MessageOut(detail='Aluno removido'))

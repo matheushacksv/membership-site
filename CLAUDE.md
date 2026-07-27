@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Backend
 - Python 3.13, Django 6.0, `django-ninja` 1.6 + `django-ninja-jwt` for the HTTP API.
 - PostgreSQL via `psycopg` (settings load from env with `python-decouple`).
-- `django-q2` for async task queue (welcome emails, password reset emails).
+- `django-q2` for async task queue (welcome emails, password reset emails, WhatsApp access messages).
 - `uv` manages the backend virtualenv (`backend/.venv`, `backend/pyproject.toml`, `backend/uv.lock`).
 - `docker-compose.yml` at the repo root provisions Postgres for local dev.
 
@@ -42,9 +42,10 @@ npm run build
 Backend `.env` (no `.env.example` committed):
 - DB: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`
 - Django: `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` (comma-separated)
-- Frontend link: `FRONTEND_URL` (used in reset/welcome emails)
+- Frontend link: `FRONTEND_URL` (used in reset/welcome emails, magic-login links, and WhatsApp access messages)
 - Email (SMTP): `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL`
-- Integrations: `KIWIFY_WEBHOOK_TOKEN`
+- Integrations: `KIWIFY_WEBHOOK_TOKEN`, `WEBHOOK_TOKEN` (external/CRM enroll)
+- Evolution API (WhatsApp) config is **DB-backed** (`integrations.EvolutionConfig` singleton, edited in the admin UI), **not** env vars.
 
 Frontend `.env`: `NUXT_PUBLIC_API_BASE` (e.g. `http://localhost:8000/api`).
 
@@ -72,9 +73,11 @@ Single Django project `core/` with feature apps as siblings: `accounts`, `course
 ### Domain apps
 
 - **accounts**: User model, auth endpoints (`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/me`, `/auth/me/avatar`, password reset flow), staff user management (`/auth/admin/users`, bulk-import, resend-welcome). Async email tasks in `accounts/tasks.py`: `send_welcome_email`, `send_welcome_email_with_reset`.
+  - **Magic login** (passwordless, stateless, no migration): `django.core.signing` token (`salt='magic-login'`, 24h). Staff generates via `POST /auth/admin/users/{id}/login-link` (returns `{url, expires_at}`); public `POST /auth/magic/login` consumes `{token}` and issues a JWT (`RefreshToken.for_user`). Shared builder `build_magic_login_url(user)` (URL-encodes the token — `signing.dumps` uses `:` separators that WhatsApp truncates in auto-links; the browser/Vue Router decode it back before `signing.loads`). Frontend consume page: `/magic?token=<>`. `staff_create_user` accepts optional `phone`.
 - **courses**: `Course` → `Module` → `Lesson` hierarchy + `Attachment` per lesson. `Course` has `kiwify_product_id` (mapping for webhook) and `access_days` (null = vitalício). Catalog endpoints (`/catalog`) and admin CRUD (`/admin/courses`, `/admin/modules`, `/admin/lessons`, attachments, reorder endpoints).
 - **enrollments**: `CourseEnrollment(user, course, is_active, expires_at, source, external_order_id)`. Unique on `(user, course)`. `source` is `'kiwify' | 'admin' | 'manual'`. Endpoints under `/enrollments`.
-- **integrations**: Kiwify webhook at `POST /api/integrations/kiwify/webhook?signature=<token>` (auth=None, query-param token comparison against `KIWIFY_WEBHOOK_TOKEN`). Events: `order_approved` → create user (if new) + enrollment + send welcome/reset email; `order_refunded` / `chargeback` → set enrollment inactive. Staff-only `GET /integrations/kiwify/config` exposes token to the admin UI.
+- **integrations**: Kiwify webhook at `POST /api/integrations/kiwify/webhook?signature=<token>` (auth=None, query-param token comparison against `KIWIFY_WEBHOOK_TOKEN`). Events: `order_approved` → create user (if new) + enrollment + send welcome/reset email; `order_refunded` / `chargeback` → set enrollment inactive. Staff-only `GET /integrations/kiwify/config` exposes token to the admin UI. External/CRM enroll at `POST /integrations/external/enroll` (auth=None, `X-Token` header vs `WEBHOOK_TOKEN`).
+  - **WhatsApp (Evolution API)**: `EvolutionConfig` singleton model (`base_url`, `instance`, `api_key`, `is_active`; `.load()` / `.ready`) edited via staff `GET`/`PUT /integrations/evolution/config` and the admin **Integrações** page. When a **new** user with a `phone` is created (Kiwify + CRM funnel through `_send_welcome_with_reset`; staff manual create enqueues directly), `integrations.tasks.send_whatsapp_access` fires a best-effort message reinforcing access, embedding the 24h magic-login link. POST via `urllib` to `{base_url}/message/sendText/{instance}` with `apikey` header; `_normalize_number` assumes BR (prefixes DDI `55`). `api_key` is a secret — exposed only through the staff endpoint, never `runtimeConfig.public`.
 
 ### Frontend layout
 

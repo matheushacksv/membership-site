@@ -148,6 +148,7 @@ const reloadRow = (userId: number) => {
           @edit="openEdit"
           @add-enrollment="openAddEnrollment"
           @edit-enrollment="openEditEnrollment"
+          @deleted="refresh()"
         />
       </div>
 

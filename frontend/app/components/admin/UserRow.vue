@@ -23,6 +23,7 @@ const emit = defineEmits<{
   resend: [user: AdminUser]
   addEnrollment: [user: AdminUser, excluded: number[]]
   editEnrollment: [enrollment: EnrollmentItem]
+  deleted: [user: AdminUser]
 }>()
 
 const admin = useAdmin()
@@ -95,6 +96,26 @@ const generateLink = async () => {
     toast.error(e?.data?.detail || 'Falha ao gerar link')
   } finally {
     linking.value = false
+  }
+}
+
+const removing = ref(false)
+const remove = async () => {
+  if (
+    !confirm(
+      `Excluir "${props.user.name || props.user.email}"? Remove o aluno e TODAS as suas matrículas. Não pode ser desfeito.`
+    )
+  )
+    return
+  removing.value = true
+  try {
+    await admin.deleteUser(props.user.id)
+    toast.success('Aluno removido')
+    emit('deleted', props.user)
+  } catch (e: any) {
+    toast.error(e?.data?.detail || 'Falha ao excluir')
+  } finally {
+    removing.value = false
   }
 }
 
@@ -177,6 +198,17 @@ defineExpose({ load })
           <Loader2 v-if="linking" class="w-3.5 h-3.5 animate-spin" />
           <KeyRound v-else class="w-3.5 h-3.5" />
           Link de acesso
+        </button>
+        <button
+          type="button"
+          :disabled="removing"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-400 hover:text-red-300 hover:bg-white/5 rounded-md disabled:opacity-50"
+          title="Excluir aluno e todas as suas matrículas"
+          @click="remove"
+        >
+          <Loader2 v-if="removing" class="w-3.5 h-3.5 animate-spin" />
+          <Trash2 v-else class="w-3.5 h-3.5" />
+          Excluir
         </button>
       </div>
     </div>
