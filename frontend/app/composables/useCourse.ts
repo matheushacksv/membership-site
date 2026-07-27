@@ -14,6 +14,7 @@ export interface Lesson {
   video_id: string | null
   duration_seconds: number
   content: string | null
+  allow_retake?: boolean
   order: number
   attachments: LessonAttachment[]
   completed: boolean
@@ -24,6 +25,8 @@ export interface Module {
   name: string
   order: number
   is_published: boolean
+  locked?: boolean
+  lesson_count?: number
   lessons: Lesson[]
 }
 
@@ -67,13 +70,16 @@ export interface CourseForm {
 export interface QuizQuestion {
   key: string
   prompt: string
+  type: string // 'choice' | 'text' (dissertativa)
   options: string[]
 }
 
 export interface QuizResultItem {
   key: string
+  type: string
   correct: number
   chosen: number | null
+  answer_text: string | null
   explanation: string
 }
 
@@ -86,6 +92,7 @@ export interface QuizResult {
 export interface QuizState {
   questions: QuizQuestion[]
   attempt: QuizResult | null
+  allow_retake: boolean
 }
 
 export const useCourse = () => {
@@ -94,7 +101,7 @@ export const useCourse = () => {
     detail: (id: number) => api<CourseDetail>(`/catalog/courses/${id}`),
     getQuiz: (lessonId: number) =>
       api<QuizState>(`/catalog/lessons/${lessonId}/quiz`),
-    submitQuiz: (lessonId: number, answers: Record<string, number>) =>
+    submitQuiz: (lessonId: number, answers: Record<string, number | string>) =>
       api<QuizResult>(`/catalog/lessons/${lessonId}/quiz`, {
         method: 'POST',
         body: { answers },

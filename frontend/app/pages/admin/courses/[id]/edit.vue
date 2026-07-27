@@ -43,6 +43,7 @@ const form = reactive<CourseInput>({
   is_active: course.value?.is_active ?? true,
   kiwify_product_id: course.value?.kiwify_product_id || '',
   access_days: course.value?.access_days ?? null,
+  quiz_webhook_url: course.value?.quiz_webhook_url || '',
 })
 
 const config = useRuntimeConfig()
@@ -93,6 +94,7 @@ const persistCourse = async () => {
       is_active: form.is_active,
       kiwify_product_id: form.kiwify_product_id || '',
       access_days: form.access_days ?? null,
+      quiz_webhook_url: form.quiz_webhook_url || '',
     })
     savedAt.value = new Date()
   } catch (e: any) {
@@ -331,6 +333,17 @@ const savedLabel = computed(() => {
               class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
             >
             <p class="text-[11px] text-neutral-500 mt-1">Quantos dias o aluno terá acesso após a compra.</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Webhook ao concluir exercício</label>
+            <input
+              v-model="form.quiz_webhook_url"
+              type="url"
+              placeholder="https://... (vazio = desligado)"
+              class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none font-mono"
+            >
+            <p class="text-[11px] text-neutral-500 mt-1">POST com aluno + respostas sempre que um exercício deste curso for finalizado.</p>
           </div>
 
           <div>

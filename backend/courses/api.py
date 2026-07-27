@@ -1,6 +1,7 @@
 import uuid
 from pathlib import Path
 
+from django.conf import settings
 from django.db import models, transaction
 from django.db.models import Count, Exists, F, OuterRef, Prefetch, Subquery
 from django.db.models.query_utils import Q
@@ -8,6 +9,7 @@ from django.db.utils import IntegrityError
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django_q.tasks import async_task
 from ninja import Form, Router, Status
 from ninja.files import UploadedFile
 
@@ -19,6 +21,7 @@ from .helpers import (
     _client_ip,
     _due_form,
     _has_course_access,
+    _module_locked,
     _signature_text,
     _stamp_image,
     _stamp_pdf,
@@ -86,6 +89,8 @@ def _assert_enrolled_or_403(request, lesson: Lesson):
     )
     if not enrolled:
         return Status(403, Error(detail='Not enrolled'))
+    if _module_locked(request.auth, lesson.module):
+        return Status(403, Error(detail='Módulo bloqueado'))
     return None
 
 
@@ -193,9 +198,15 @@ def course_detail(request, course_id: int):
         ).values_list('lesson_id', flat=True)
     )
 
+    # Lock por progressão: um módulo `requires_previous` trava até TODAS as aulas
+    # publicadas dos módulos anteriores estarem concluídas. Módulos já vêm em ordem;
+    # acumula os ids "até aqui" e checa subset — zero query extra.
+    seen_lesson_ids: set[int] = set()
     for module in getattr(course, 'modules').all():
+        module._locked = module.requires_previous and not seen_lesson_ids <= completed_ids
         for lesson in module.lessons.all():
             lesson._completed_for_user = lesson.id in completed_ids
+            seen_lesson_ids.add(lesson.id)
 
     return Status(200, course)
 
@@ -295,25 +306,38 @@ def submit_form_response(request, form_id: int, data: FormResponseIn):
 
 
 def _quiz_result(questions: list[dict], answers: dict) -> QuizResultOut:
-    """Corrige. Só roda no servidor — é aqui que o gabarito aparece pela primeira vez."""
-    results = [
-        {
-            'key': q['key'],
-            'correct': q['correct'],
-            'chosen': answers.get(q['key']),
-            'explanation': q.get('explanation', ''),
-        }
-        for q in questions
-    ]
-    score = sum(1 for r in results if r['chosen'] == r['correct'])
-    return QuizResultOut(score=score, total=len(questions), results=results)
+    """Corrige. Só roda no servidor — é aqui que o gabarito aparece pela primeira vez.
+    Dissertativa (type='text') não entra na nota: coletada só. total/score contam só escolha."""
+    results = []
+    for q in questions:
+        raw = answers.get(q['key'])
+        if q.get('type', 'choice') == 'text':
+            results.append({
+                'key': q['key'],
+                'type': 'text',
+                'correct': -1,
+                'chosen': None,
+                'answer_text': str(raw) if raw is not None else None,
+                'explanation': q.get('explanation', ''),
+            })
+        else:
+            results.append({
+                'key': q['key'],
+                'type': 'choice',
+                'correct': q['correct'],
+                'chosen': raw if isinstance(raw, int) else None,
+                'explanation': q.get('explanation', ''),
+            })
+    choice = [r for r in results if r['type'] == 'choice']
+    score = sum(1 for r in choice if r['chosen'] == r['correct'])
+    return QuizResultOut(score=score, total=len(choice), results=results)
 
 
 @catalog_router.get('/lessons/{lesson_id}/quiz', response={200: QuizStateOut, 403: Error, 404: Error})
 def get_lesson_quiz(request, lesson_id: int):
     lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
-    if not _has_course_access(request.auth, lesson.module.course_id):
-        return Status(403, Error(detail='Not enrolled'))
+    if denied := _assert_enrolled_or_403(request, lesson):  # acesso + lock de módulo
+        return denied
 
     questions = lesson.questions or []
     attempt = QuizAttempt.objects.filter(lesson=lesson, user=request.auth).first()
@@ -322,18 +346,23 @@ def get_lesson_quiz(request, lesson_id: int):
     return Status(200, {
         'questions': questions,
         'attempt': _quiz_result(questions, attempt.answers) if attempt else None,
+        'allow_retake': lesson.allow_retake,
     })
 
 
-@catalog_router.post('/lessons/{lesson_id}/quiz', response={200: QuizResultOut, 400: Error, 403: Error, 404: Error})
+@catalog_router.post('/lessons/{lesson_id}/quiz', response={200: QuizResultOut, 400: Error, 403: Error, 404: Error, 409: Error})
 def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
-    lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
-    if not _has_course_access(request.auth, lesson.module.course_id):
-        return Status(403, Error(detail='Not enrolled'))
+    lesson = get_object_or_404(Lesson.objects.select_related('module__course'), id=lesson_id)
+    if denied := _assert_enrolled_or_403(request, lesson):  # acesso + lock de módulo
+        return denied
 
     questions = lesson.questions or []
     if not questions:
         return Status(400, Error(detail='Aula sem perguntas'))
+
+    # 1 tentativa: já respondeu e o admin desligou o refazer → bloqueia sobrescrita.
+    if not lesson.allow_retake and QuizAttempt.objects.filter(lesson=lesson, user=request.auth).exists():
+        return Status(409, Error(detail='Exercício já respondido'))
 
     result = _quiz_result(questions, data.answers)
     QuizAttempt.objects.update_or_create(
@@ -348,14 +377,24 @@ def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
         lesson=lesson,
         defaults={'completed_at': timezone.now()},
     )
+
+    if lesson.module.course.quiz_webhook_url:
+        from .tasks import _quiz_webhook_payload  # evita import de rede no boot
+
+        async_task(
+            'courses.tasks.fire_quiz_webhook',
+            lesson.module.course.quiz_webhook_url,
+            _quiz_webhook_payload(lesson, request.auth, result, data.answers),
+            settings.QUIZ_WEBHOOK_SECRET,
+        )
     return Status(200, result)
 
 
 @catalog_router.get('/attachments/{attachment_id}/download', response={403: Error, 404: Error})
 def download_attachment(request, attachment_id: int):
     att = get_object_or_404(LessonAttachment.objects.select_related('lesson__module'), id=attachment_id)
-    if not _has_course_access(request.auth, att.lesson.module.course_id):
-        return Status(403, Error(detail='Not enrolled'))
+    if denied := _assert_enrolled_or_403(request, att.lesson):  # acesso + lock de módulo
+        return denied
 
     ip = _client_ip(request)
     DownloadLog.objects.create(user=request.auth, attachment=att, email=request.auth.email, ip=ip or None)
@@ -408,6 +447,7 @@ def create_course(request, data: CourseIn):
         is_active=data.is_active,
         kiwify_product_id=data.kiwify_product_id,
         access_days=data.access_days,
+        quiz_webhook_url=data.quiz_webhook_url,
     )
 
     return Status(201, course)
@@ -551,6 +591,7 @@ def create_lesson(request, data: LessonIn):
             video_id=data.video_id or '',
             content=data.content or '',
             duration_seconds=data.duration_seconds or 0,
+            allow_retake=data.allow_retake,
             order=data.order if data.order > 0 else next_order,
             is_published=data.is_published,
         )

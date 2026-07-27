@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown } from 'lucide-vue-next'
+import { ChevronDown, Lock } from 'lucide-vue-next'
 import type { Module } from '~/composables/useCourse'
 
 const props = defineProps<{
@@ -22,7 +22,17 @@ const completedCount = computed(() =>
 
 <template>
   <div class="border-b border-white/5 last:border-b-0">
+    <!-- Módulo travado: sem aulas no payload, não abre. -->
+    <div v-if="module.locked" class="flex items-start gap-2 px-3 py-2.5">
+      <Lock class="w-4 h-4 mt-0.5 text-neutral-600 shrink-0" />
+      <span class="flex-1 min-w-0">
+        <span class="block text-sm font-medium text-neutral-400 break-words" :title="module.name">{{ module.name }}</span>
+        <span class="block text-[10px] text-neutral-600">Conclua os módulos anteriores · {{ module.lesson_count ?? 0 }} aula{{ (module.lesson_count ?? 0) === 1 ? '' : 's' }}</span>
+      </span>
+    </div>
+
     <button
+      v-else
       type="button"
       class="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-white/[0.03]"
       @click="expanded = !expanded"

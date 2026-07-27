@@ -25,6 +25,7 @@ const form = reactive({
   video_provider: '' as string | null,
   video_id: '',
   content: '',
+  allow_retake: true,
   is_published: true,
 })
 
@@ -49,6 +50,7 @@ watch(
       form.video_provider = l.video_provider || ''
       form.video_id = l.video_id || ''
       form.content = l.content || ''
+      form.allow_retake = l.allow_retake ?? true
       form.is_published = l.is_published
       questions.value = form.kind === 'quiz' ? await admin.getLessonQuiz(id) : []
       await loadAttachments(id)
@@ -149,6 +151,7 @@ const save = async () => {
       video_provider: form.video_provider || null,
       video_id: form.video_id || null,
       content: form.content || null,
+      allow_retake: form.allow_retake,
       is_published: form.is_published,
     })
     // Perguntas vão num PUT separado; o backend valida (≥2 opções, gabarito no range)
@@ -257,6 +260,10 @@ const save = async () => {
             Ver respostas
           </button>
         </div>
+        <label class="flex items-center gap-2 text-sm text-neutral-400">
+          <input v-model="form.allow_retake" type="checkbox" class="accent-orange-500">
+          Permitir refazer <span class="text-neutral-600">(desligado = 1 tentativa)</span>
+        </label>
         <AdminQuizEditor v-model="questions" />
       </div>
 

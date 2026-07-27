@@ -11,8 +11,9 @@ const toast = useToast()
 const loading = ref(true)
 const submitting = ref(false)
 const questions = ref<QuizQuestion[]>([])
-const selected = ref<Record<string, number>>({})
+const selected = ref<Record<string, number | string>>({})
 const result = ref<QuizResult | null>(null)
+const allowRetake = ref(true)
 
 const load = async () => {
   loading.value = true
@@ -22,6 +23,7 @@ const load = async () => {
     const state = await courseApi.getQuiz(props.lessonId)
     questions.value = state.questions
     result.value = state.attempt // já respondeu antes → mostra o resultado direto
+    allowRetake.value = state.allow_retake
   } catch (e: any) {
     toast.error(e?.data?.detail || 'Falha ao carregar exercício')
     questions.value = []
@@ -32,11 +34,14 @@ const load = async () => {
 
 watch(() => props.lessonId, load, { immediate: true })
 
-const allAnswered = computed(() =>
-  questions.value.length > 0 && questions.value.every((q) => q.key in selected.value)
-)
+// Escolha: respondida quando tem índice; dissertativa: quando o texto não está vazio.
+const isAnswered = (q: QuizQuestion) => {
+  const v = selected.value[q.key]
+  return q.type === 'text' ? typeof v === 'string' && v.trim() !== '' : typeof v === 'number'
+}
+const allAnswered = computed(() => questions.value.length > 0 && questions.value.every(isAnswered))
 
-// Índice correto/escolhido por pergunta, pra pintar as opções na tela de resultado.
+// Índice correto/escolhido (ou texto) por pergunta, pra montar a tela de resultado.
 const resultByKey = computed(() =>
   Object.fromEntries((result.value?.results || []).map((r) => [r.key, r]))
 )
@@ -76,11 +81,13 @@ const retake = () => {
       <div class="flex items-center justify-between gap-3">
         <div>
           <p class="text-xs font-bold uppercase tracking-wider text-neutral-400">Seu resultado</p>
-          <p class="text-2xl font-bold text-white">
+          <p v-if="result.total > 0" class="text-2xl font-bold text-white">
             {{ result.score }}<span class="text-neutral-500">/{{ result.total }}</span>
           </p>
+          <p v-else class="text-lg font-bold text-green-300">Respostas enviadas ✓</p>
         </div>
         <button
+          v-if="allowRetake"
           type="button"
           class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider text-neutral-300 hover:text-white hover:bg-white/5 border border-white/15 rounded-md"
           @click="retake"
@@ -98,7 +105,15 @@ const retake = () => {
         <p class="text-sm font-medium text-white">
           <span class="text-neutral-500">{{ qi + 1 }}.</span> {{ q.prompt }}
         </p>
-        <div class="space-y-1.5">
+
+        <!-- Dissertativa: mostra o que o aluno escreveu (sem certo/errado) -->
+        <div v-if="q.type === 'text'" class="rounded-md border border-white/5 bg-white/[0.02] px-3 py-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1">Sua resposta</p>
+          <p class="text-sm text-neutral-200 whitespace-pre-wrap">{{ resultByKey[q.key]?.answer_text || '—' }}</p>
+        </div>
+
+        <!-- Múltipla escolha: pinta escolhida vs correta -->
+        <div v-else class="space-y-1.5">
           <div
             v-for="(opt, oi) in q.options"
             :key="oi"
@@ -112,14 +127,12 @@ const retake = () => {
             ]"
           >
             <CheckCircle2 v-if="oi === resultByKey[q.key]?.correct" class="w-4 h-4 shrink-0" />
-            <XCircle
-              v-else-if="oi === resultByKey[q.key]?.chosen"
-              class="w-4 h-4 shrink-0"
-            />
+            <XCircle v-else-if="oi === resultByKey[q.key]?.chosen" class="w-4 h-4 shrink-0" />
             <span v-else class="w-4 h-4 shrink-0" />
             {{ opt }}
           </div>
         </div>
+
         <p
           v-if="resultByKey[q.key]?.explanation"
           class="text-xs text-neutral-400 border-l-2 border-orange-500/40 pl-3"
@@ -139,8 +152,21 @@ const retake = () => {
         <p class="text-sm font-medium text-white">
           <span class="text-neutral-500">{{ qi + 1 }}.</span> {{ q.prompt }}
         </p>
+
+        <!-- Dissertativa -->
+        <textarea
+          v-if="q.type === 'text'"
+          :value="(selected[q.key] as string) || ''"
+          rows="4"
+          placeholder="Escreva sua resposta..."
+          class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-md text-sm text-white placeholder:text-neutral-600 focus:border-orange-500/50 focus:outline-none resize-y"
+          @input="selected = { ...selected, [q.key]: ($event.target as HTMLTextAreaElement).value }"
+        />
+
+        <!-- Múltipla escolha -->
         <label
           v-for="(opt, oi) in q.options"
+          v-else
           :key="oi"
           class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-neutral-300 cursor-pointer hover:bg-white/5 border border-transparent"
           :class="selected[q.key] === oi ? 'border-orange-500/40 bg-orange-500/5 text-white' : ''"

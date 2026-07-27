@@ -10,9 +10,15 @@ const inputClass =
 
 // Começa com 2 opções vazias: o backend exige no mínimo 2 (QuizQuestionIn).
 const addQuestion = () =>
-  questions.value.push({ prompt: '', options: ['', ''], correct: 0, explanation: '' })
+  questions.value.push({ prompt: '', type: 'choice', options: ['', ''], correct: 0, explanation: '' })
 
 const removeQuestion = (i: number) => questions.value.splice(i, 1)
+
+// Dissertativa não tem opções; ao voltar p/ escolha garante o mínimo de 2 exigido no backend.
+const setType = (q: AdminQuizQuestion, t: 'choice' | 'text') => {
+  q.type = t
+  if (t === 'choice' && q.options.length < 2) q.options = ['', '']
+}
 
 const addOption = (q: AdminQuizQuestion) => q.options.push('')
 
@@ -43,7 +49,22 @@ const removeOption = (q: AdminQuizQuestion, oi: number) => {
         </button>
       </div>
 
-      <div class="pl-6 space-y-2">
+      <div class="pl-6 flex gap-1">
+        <button
+          v-for="t in (['choice', 'text'] as const)"
+          :key="t"
+          type="button"
+          class="px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md border"
+          :class="q.type === t
+            ? 'border-orange-500/50 bg-orange-500/10 text-orange-200'
+            : 'border-white/10 text-neutral-500 hover:text-neutral-300'"
+          @click="setType(q, t)"
+        >
+          {{ t === 'choice' ? 'Múltipla escolha' : 'Dissertativa' }}
+        </button>
+      </div>
+
+      <div v-if="q.type === 'choice'" class="pl-6 space-y-2">
         <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
           Opções <span class="text-neutral-600">(marque a correta)</span>
         </p>

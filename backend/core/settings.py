@@ -198,3 +198,6 @@ KIWIFY_WEBHOOK_TOKEN = config('KIWIFY_WEBHOOK_TOKEN', default='')
 
 # External Webhook
 WEBHOOK_TOKEN = config('WEBHOOK_TOKEN', default='')
+
+# Enviado no header X-Webhook-Token do webhook de exercício concluído (vazio = sem header)
+QUIZ_WEBHOOK_SECRET = config('QUIZ_WEBHOOK_SECRET', default='')

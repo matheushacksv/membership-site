@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 
-from courses.models import FormResponse
+from courses.models import FormResponse, Lesson
 from enrollments.models import CourseEnrollment, LessonProgress
 
 
@@ -33,6 +33,30 @@ def _due_form(user, course):
             # Respondeu: respeita a cadência (every_days=0 = nunca mais)
             return None
     return form
+
+
+def _module_locked(user, module) -> bool:
+    """Módulo com `requires_previous` trava até TODAS as aulas publicadas dos módulos
+    de ordem menor (mesmo curso) estarem concluídas pelo aluno."""
+    if not module.requires_previous:
+        return False
+
+    prev_lesson_ids = set(
+        Lesson.objects.filter(
+            module__course_id=module.course_id,
+            module__order__lt=module.order,
+            is_published=True,
+        ).values_list('id', flat=True)
+    )
+    if not prev_lesson_ids:  # nada antes → destravado
+        return False
+
+    done = set(
+        LessonProgress.objects.filter(
+            user=user, lesson_id__in=prev_lesson_ids, completed_at__isnull=False
+        ).values_list('lesson_id', flat=True)
+    )
+    return not prev_lesson_ids <= done
 
 
 def _has_course_access(user, course_id: int) -> bool:

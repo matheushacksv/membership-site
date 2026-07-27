@@ -85,6 +85,10 @@ const patchLocalCompleted = (id: number, value = true) => {
       ),
     })),
   }
+  // O `locked` do módulo (requires_previous) é calculado no servidor e depende de aulas
+  // que o módulo travado nem manda no payload → não dá pra recomputar no cliente.
+  // Refetch quando há módulo travado (concluir pode destravar) ou ao desmarcar (pode retravar).
+  if (value === false || course.value.modules.some((m) => m.locked)) refresh()
 }
 
 const onProgress = async (seconds: number, duration: number) => {

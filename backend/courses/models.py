@@ -21,6 +21,7 @@ class Course(models.Model):
     is_active = models.BooleanField(default=False)
     kiwify_product_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
     access_days = models.PositiveIntegerField(null=True, blank=True, help_text='Dias de acesso após matrícula. Vazio = vitalício')
+    quiz_webhook_url = models.URLField(max_length=500, blank=True, default='', help_text='POST disparado ao aluno concluir um exercício deste curso. Vazio = desligado')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -33,6 +34,7 @@ class Module(models.Model):
     name = models.CharField(max_length=255)
     order = models.IntegerField(default=0)
     is_published = models.BooleanField(default=False)
+    requires_previous = models.BooleanField(default=False, help_text='Trava até todas as aulas dos módulos anteriores estarem concluídas')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -64,6 +66,7 @@ class Lesson(models.Model):
     video_id = models.CharField(max_length=255, blank=True, default='')
     content = models.TextField(blank=True, default='')
     duration_seconds = models.PositiveIntegerField(default=0)
+    allow_retake = models.BooleanField(default=True, help_text='Exercício: permitir refazer. Desligado = 1 tentativa')
     order = models.IntegerField(default=0)
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

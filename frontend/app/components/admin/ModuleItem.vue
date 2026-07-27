@@ -11,6 +11,8 @@ import {
   Check,
   X,
   Loader2,
+  Lock,
+  LockOpen,
 } from 'lucide-vue-next'
 import type { LessonItem as Lesson, ModuleItem as Module } from '~/composables/useAdmin'
 import LessonItemRow from './LessonItem.vue'
@@ -62,6 +64,18 @@ const saveName = async () => {
     toast.error(e?.data?.detail || 'Falha ao renomear')
   } finally {
     savingName.value = false
+  }
+}
+
+// Trava o módulo até as aulas dos módulos anteriores estarem concluídas. Otimista.
+const toggleRequiresPrevious = async () => {
+  const next = !props.module.requires_previous
+  props.module.requires_previous = next
+  try {
+    await admin.updateModule(props.module.id, { requires_previous: next })
+  } catch {
+    props.module.requires_previous = !next
+    toast.error('Falha ao atualizar')
   }
 }
 
@@ -193,6 +207,15 @@ defineExpose({ loadLessons })
           @click="startEditName"
         >
           <Pencil class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          :title="module.requires_previous ? 'Travado até concluir os módulos anteriores' : 'Liberar só após os módulos anteriores'"
+          class="p-1.5 rounded"
+          :class="module.requires_previous ? 'text-orange-400 hover:text-orange-300' : 'text-neutral-500 hover:text-orange-300'"
+          @click="toggleRequiresPrevious"
+        >
+          <component :is="module.requires_previous ? Lock : LockOpen" class="w-4 h-4" />
         </button>
         <button
           type="button"

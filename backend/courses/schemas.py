@@ -46,6 +46,7 @@ class LessonOut(Schema):
     video_id: str | None
     duration_seconds: int
     content: str | None
+    allow_retake: bool = True
     order: int
     is_published: bool = False
     attachments: list[LessonAttachmentOut] = []
@@ -65,6 +66,7 @@ class LessonIn(Schema):
     video_id: str | None = None
     duration_seconds: int | None = None
     content: str | None = None
+    allow_retake: bool = True
     order: int = 0
     is_published: bool = False
 
@@ -87,6 +89,7 @@ class LessonUpdateIn(Schema):
     video_id: str | None = None
     duration_seconds: int | None = None
     content: str | None = None
+    allow_retake: bool | None = None
     order: int | None = None
     is_published: bool | None = None
 
@@ -136,6 +139,7 @@ class ModuleUpdateIn(Schema):
     name: str | None = None
     order: int | None = None
     is_published: bool | None = None
+    requires_previous: bool | None = None
 
 
 class ModuleOut(Schema):
@@ -143,11 +147,22 @@ class ModuleOut(Schema):
     name: str
     order: int
     is_published: bool = False
+    locked: bool = False
+    lesson_count: int = 0
     lessons: list[LessonOut] = []
 
     @staticmethod
+    def resolve_locked(obj) -> bool:
+        return getattr(obj, '_locked', False)
+
+    @staticmethod
+    def resolve_lesson_count(obj) -> int:
+        return len(obj.lessons.all())  # cache do prefetch, sem query extra
+
+    @staticmethod
     def resolve_lessons(obj):
-        return list(obj.lessons.all())
+        # Módulo travado não vaza as aulas (nem vídeo nem conteúdo).
+        return [] if getattr(obj, '_locked', False) else list(obj.lessons.all())
 
 
 class CourseDetailOut(Schema):
@@ -172,6 +187,7 @@ class CourseIn(Schema):
     is_active: bool = False
     kiwify_product_id: str = ''
     access_days: int | None = None
+    quiz_webhook_url: str = ''
 
 
 class CourseOut(Schema):
@@ -184,6 +200,7 @@ class CourseOut(Schema):
     checkout_link: str | None = None
     kiwify_product_id: str = ''
     access_days: int | None = None
+    quiz_webhook_url: str = ''
 
     @staticmethod
     def resolve_image(obj) -> str | None:
@@ -199,6 +216,7 @@ class CourseUpdateIn(Schema):
     is_active: bool | None = None
     kiwify_product_id: str | None = None
     access_days: int | None = None
+    quiz_webhook_url: str | None = None
 
 
 class BannerOut(Schema):
@@ -320,6 +338,7 @@ class QuizQuestionOut(Schema):
 
     key: str
     prompt: str
+    type: str = 'choice'  # 'choice' | 'text' (dissertativa)
     options: list[str] = []
 
 
@@ -328,12 +347,15 @@ class QuizQuestionIn(Schema):
 
     key: str = ''
     prompt: str
+    type: Literal['choice', 'text'] = 'choice'
     options: list[str] = []
     correct: int = 0
     explanation: str = ''
 
     @model_validator(mode='after')
     def check_options(self) -> Self:
+        if self.type == 'text':  # dissertativa não tem opções/gabarito
+            return self
         opts = [o for o in self.options if o.strip()]
         if len(opts) < 2:
             raise ValueError(f'"{self.prompt}" precisa de ao menos 2 opções')
@@ -347,13 +369,16 @@ class QuizSaveIn(Schema):
 
 
 class QuizSubmitIn(Schema):
-    answers: dict[str, int] = {}
+    # int = índice da opção (escolha); str = texto (dissertativa).
+    answers: dict[str, int | str] = {}
 
 
 class QuizResultItem(Schema):
     key: str
+    type: str = 'choice'
     correct: int
     chosen: int | None = None
+    answer_text: str | None = None  # dissertativa: o que o aluno escreveu
     explanation: str = ''
 
 
@@ -366,6 +391,7 @@ class QuizResultOut(Schema):
 class QuizStateOut(Schema):
     questions: list[QuizQuestionOut] = []
     attempt: QuizResultOut | None = None
+    allow_retake: bool = True
 
 
 class QuizResponseAdminOut(Schema):

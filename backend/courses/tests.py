@@ -1,10 +1,16 @@
 from types import SimpleNamespace
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
+
+from enrollments.models import LessonProgress
 
 from .api import _quiz_result, attachment_library, link_attachment
+from .helpers import _module_locked
 from .models import Course, Lesson, LessonAttachment, Module
 from .schemas import LinkAttachmentIn
+from .tasks import _quiz_webhook_payload
 
 
 class LinkAttachmentTests(TestCase):
@@ -78,3 +84,69 @@ class QuizScoringTests(TestCase):
         self.assertEqual(por_key['q0'].chosen, 0)
         self.assertIsNone(por_key['q2'].chosen)  # sem resposta → erro, não crash
         self.assertEqual(por_key['q0'].explanation, 'porque x')
+
+    def test_dissertativa_fora_da_nota(self):
+        qs = [
+            {'key': 'q0', 'prompt': 'a', 'type': 'choice', 'options': ['x', 'y'], 'correct': 0, 'explanation': ''},
+            {'key': 'q1', 'prompt': 'disserte', 'type': 'text', 'options': [], 'correct': 0, 'explanation': ''},
+        ]
+        result = _quiz_result(qs, {'q0': 0, 'q1': 'minha resposta'})
+
+        self.assertEqual(result.total, 1)  # só a de escolha entra no total
+        self.assertEqual(result.score, 1)
+        por_key = {r.key: r for r in result.results}
+        self.assertEqual(por_key['q1'].type, 'text')
+        self.assertEqual(por_key['q1'].answer_text, 'minha resposta')
+        self.assertIsNone(por_key['q1'].chosen)
+
+
+class ModuleLockTests(TestCase):
+    """`requires_previous` trava até concluir as aulas dos módulos anteriores."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(email='a@a.com', password='x', name='A')
+        self.course = Course.objects.create(name='C', category=Course.Category.SALES)
+        self.m1 = Module.objects.create(course=self.course, name='M1', order=0, is_published=True)
+        self.m2 = Module.objects.create(
+            course=self.course, name='M2', order=1, is_published=True, requires_previous=True
+        )
+        self.l1 = Lesson.objects.create(module=self.m1, name='L1', order=0, is_published=True)
+        Lesson.objects.create(module=self.m2, name='L2', order=0, is_published=True)
+
+    def test_travado_ate_concluir_anterior(self):
+        self.assertTrue(_module_locked(self.user, self.m2))
+        LessonProgress.objects.create(user=self.user, lesson=self.l1, completed_at=timezone.now())
+        self.assertFalse(_module_locked(self.user, self.m2))
+
+    def test_sem_flag_nunca_trava(self):
+        self.assertFalse(_module_locked(self.user, self.m1))  # requires_previous=False
+
+
+class QuizWebhookPayloadTests(TestCase):
+    """Payload do webhook: nota só de escolha, texto coletado, enunciados juntos."""
+
+    def test_payload_forma(self):
+        course = Course.objects.create(name='Curso', category=Course.Category.SALES)
+        module = Module.objects.create(course=course, name='M', order=0)
+        lesson = Lesson.objects.create(
+            module=module,
+            name='Prova',
+            kind=Lesson.Kind.QUIZ,
+            order=0,
+            questions=[
+                {'key': 'q0', 'prompt': '2+2?', 'type': 'choice', 'options': ['3', '4'], 'correct': 1, 'explanation': ''},
+                {'key': 'q1', 'prompt': 'Explique', 'type': 'text', 'options': [], 'correct': 0, 'explanation': ''},
+            ],
+        )
+        user = get_user_model().objects.create_user(email='b@b.com', password='x', name='Bea')
+        answers = {'q0': 1, 'q1': 'porque sim'}
+        result = _quiz_result(lesson.questions, answers)
+
+        payload = _quiz_webhook_payload(lesson, user, result, answers)
+        self.assertEqual(payload['event'], 'quiz_completed')
+        self.assertEqual((payload['score'], payload['total']), (1, 1))
+        self.assertEqual(payload['user']['email'], 'b@b.com')
+        by_key = {a['key']: a for a in payload['answers']}
+        self.assertTrue(by_key['q0']['is_correct'])
+        self.assertEqual(by_key['q0']['prompt'], '2+2?')
+        self.assertEqual(by_key['q1']['answer_text'], 'porque sim')

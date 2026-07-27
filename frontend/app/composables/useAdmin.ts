@@ -3,6 +3,7 @@ import type { BannerItem, CourseListItem } from '~/composables/useCatalog'
 export interface AdminCourse extends CourseListItem {
   created_at?: string
   updated_at?: string
+  quiz_webhook_url?: string
 }
 
 export interface CourseInput {
@@ -14,6 +15,7 @@ export interface CourseInput {
   image?: string | null
   kiwify_product_id?: string
   access_days?: number | null
+  quiz_webhook_url?: string
 }
 
 export interface ModuleItem {
@@ -22,6 +24,7 @@ export interface ModuleItem {
   name: string
   order: number
   is_published: boolean
+  requires_previous?: boolean
 }
 
 export interface ModuleInput {
@@ -29,6 +32,7 @@ export interface ModuleInput {
   name: string
   order?: number
   is_published?: boolean
+  requires_previous?: boolean
 }
 
 export interface LessonItem {
@@ -40,6 +44,7 @@ export interface LessonItem {
   video_provider?: string | null
   video_id?: string | null
   content?: string | null
+  allow_retake?: boolean
   order: number
   is_published: boolean
 }
@@ -52,6 +57,7 @@ export interface LessonInput {
   video_provider?: string | null
   video_id?: string | null
   content?: string | null
+  allow_retake?: boolean
   order?: number
   is_published?: boolean
 }
@@ -110,6 +116,7 @@ export interface AttachmentLibraryItem extends AttachmentItem {
 export interface AdminQuizQuestion {
   key?: string
   prompt: string
+  type: 'choice' | 'text'
   options: string[]
   correct: number
   explanation: string
@@ -120,7 +127,7 @@ export interface QuizResponseRow {
   user_email: string
   score: number
   total: number
-  answers: Record<string, number>
+  answers: Record<string, number | string>
   updated_at: string
 }
 

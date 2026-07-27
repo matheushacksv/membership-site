@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Loader2, Download } from 'lucide-vue-next'
-import type { QuizResponseRow } from '~/composables/useAdmin'
+import type { AdminQuizQuestion, QuizResponseRow } from '~/composables/useAdmin'
 
 const props = defineProps<{ open: boolean; lessonId: number | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -9,16 +9,26 @@ const admin = useAdmin()
 const toast = useToast()
 
 const rows = ref<QuizResponseRow[]>([])
+const questions = ref<AdminQuizQuestion[]>([])
 const loading = ref(false)
+
+// Só as dissertativas — são as que têm texto pra mostrar/exportar.
+const textQuestions = computed(() => questions.value.filter((q) => q.type === 'text'))
 
 const load = async () => {
   if (!props.lessonId) return
   loading.value = true
   try {
-    rows.value = await admin.listQuizResponses(props.lessonId)
+    const [r, q] = await Promise.all([
+      admin.listQuizResponses(props.lessonId),
+      admin.getLessonQuiz(props.lessonId),
+    ])
+    rows.value = r
+    questions.value = q
   } catch (e: any) {
     toast.error(e?.data?.detail || 'Falha ao carregar respostas')
     rows.value = []
+    questions.value = []
   } finally {
     loading.value = false
   }
@@ -28,7 +38,10 @@ watch(
   () => props.open,
   (v) => {
     if (v) load()
-    else rows.value = []
+    else {
+      rows.value = []
+      questions.value = []
+    }
   }
 )
 
@@ -36,13 +49,14 @@ watch(
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
 
 const exportCsv = () => {
-  const header = ['Aluno', 'Email', 'Nota', 'Total', 'Data']
+  const header = ['Aluno', 'Email', 'Nota', 'Total', 'Data', ...textQuestions.value.map((q) => q.prompt)]
   const lines = rows.value.map((r) => [
     r.user_name || '',
     r.user_email,
     r.score,
     r.total,
     new Date(r.updated_at).toLocaleString('pt-BR'),
+    ...textQuestions.value.map((q) => r.answers[q.key ?? ''] ?? ''),
   ])
   const csv = [header, ...lines].map((l) => l.map(csvCell).join(',')).join('\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
@@ -78,20 +92,28 @@ const exportCsv = () => {
 
         <div
           v-if="rows.length"
-          class="max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-white/5 divide-y divide-white/5"
+          class="max-h-96 overflow-y-auto rounded-lg border border-white/10 bg-white/5 divide-y divide-white/5"
         >
-          <div
-            v-for="(r, i) in rows"
-            :key="i"
-            class="flex items-center gap-3 px-4 py-2.5 text-sm"
-          >
-            <span class="flex-1 min-w-0">
-              <span class="block text-white truncate">{{ r.user_name || r.user_email }}</span>
-              <span v-if="r.user_name" class="block text-[11px] text-neutral-500 truncate">{{ r.user_email }}</span>
-            </span>
-            <span class="text-white font-medium shrink-0">
-              {{ r.score }}<span class="text-neutral-500">/{{ r.total }}</span>
-            </span>
+          <div v-for="(r, i) in rows" :key="i" class="px-4 py-2.5 text-sm space-y-2">
+            <div class="flex items-center gap-3">
+              <span class="flex-1 min-w-0">
+                <span class="block text-white truncate">{{ r.user_name || r.user_email }}</span>
+                <span v-if="r.user_name" class="block text-[11px] text-neutral-500 truncate">{{ r.user_email }}</span>
+              </span>
+              <span class="text-white font-medium shrink-0">
+                {{ r.score }}<span class="text-neutral-500">/{{ r.total }}</span>
+              </span>
+            </div>
+
+            <!-- Respostas dissertativas deste aluno -->
+            <div
+              v-for="q in textQuestions"
+              :key="q.key"
+              class="rounded-md border border-white/5 bg-white/[0.02] px-3 py-2"
+            >
+              <p class="text-[11px] text-neutral-500">{{ q.prompt }}</p>
+              <p class="text-neutral-200 whitespace-pre-wrap">{{ r.answers[q.key ?? ''] || '—' }}</p>
+            </div>
           </div>
         </div>
 
