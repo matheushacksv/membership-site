@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
   GraduationCap,
+  KeyRound,
   Infinity as InfinityIcon,
 } from 'lucide-vue-next'
 import type { AdminCourse, AdminUser, EnrollmentItem } from '~/composables/useAdmin'
@@ -32,6 +33,7 @@ const loading = ref(false)
 const enrollments = ref<EnrollmentItem[]>([])
 const revoking = ref<number | null>(null)
 const resending = ref(false)
+const linking = ref(false)
 
 const load = async () => {
   loading.value = true
@@ -75,6 +77,24 @@ const resend = async () => {
     toast.error(e?.data?.detail || 'Falha ao reenviar')
   } finally {
     resending.value = false
+  }
+}
+
+const generateLink = async () => {
+  linking.value = true
+  try {
+    const { url } = await admin.generateLoginLink(props.user.id)
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Link de acesso copiado (válido 24h)')
+    } catch {
+      // clipboard indisponível (contexto não-seguro): prompt garante o copiar manual
+      window.prompt('Copie o link de acesso (válido 24h):', url)
+    }
+  } catch (e: any) {
+    toast.error(e?.data?.detail || 'Falha ao gerar link')
+  } finally {
+    linking.value = false
   }
 }
 
@@ -146,6 +166,17 @@ defineExpose({ load })
           <Loader2 v-if="resending" class="w-3.5 h-3.5 animate-spin" />
           <Mail v-else class="w-3.5 h-3.5" />
           Reenviar
+        </button>
+        <button
+          type="button"
+          :disabled="linking"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-400 hover:text-orange-300 hover:bg-white/5 rounded-md disabled:opacity-50"
+          title="Gera link de login automático (válido 24h) e copia"
+          @click="generateLink"
+        >
+          <Loader2 v-if="linking" class="w-3.5 h-3.5 animate-spin" />
+          <KeyRound v-else class="w-3.5 h-3.5" />
+          Link de acesso
         </button>
       </div>
     </div>

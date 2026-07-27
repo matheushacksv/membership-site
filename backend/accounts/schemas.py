@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Optional, Self
 
 from ninja import Schema
@@ -86,6 +87,15 @@ class TokenOut(Schema):
 
 class RefreshIn(Schema):
     refresh: str
+
+
+class MagicLoginIn(Schema):
+    token: str
+
+
+class MagicLinkOut(Schema):
+    url: str
+    expires_at: datetime
 
 
 class LoginIn(Schema):

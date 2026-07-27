@@ -1,14 +1,17 @@
 import secrets
 import uuid
+from datetime import timedelta
 from pathlib import Path
 from typing import cast
 
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
+from django.core import signing
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django_q.tasks import async_task, count_group, result_group
@@ -29,6 +32,8 @@ from .schemas import (
     BulkImportStatusOut,
     ForgotPasswordIn,
     LoginIn,
+    MagicLinkOut,
+    MagicLoginIn,
     MessageOut,
     NewUserFromWebhook,
     RefreshIn,
@@ -44,6 +49,8 @@ from .schemas import (
 
 ALLOWED = {'image/jpeg', 'image/png', 'image/webp'}
 MAX_BYTES = 2 * 1024 * 1024  # 2MB
+MAGIC_LINK_SALT = 'magic-login'
+MAGIC_LINK_MAX_AGE = 60 * 60 * 24  # 24h
 
 router = Router(tags=['Users'])
 
@@ -163,6 +170,25 @@ def refresh_token(request, data: RefreshIn):
         return Status(401, Error(detail='Invalid or expired token'))
 
 
+@router.post('/magic/login', response={200: TokenOut, 401: Error}, auth=None)
+def magic_login(request, data: MagicLoginIn):
+    # Link de login automático (24h). Token assinado (django.core.signing) carrega o
+    # pk; consumir = emitir JWT direto, igual signin. SignatureExpired é subclasse de
+    # BadSignature → um except cobre expirado + adulterado. Mensagem genérica: não
+    # revela se o pk existe.
+    try:
+        uid = signing.loads(data.token, salt=MAGIC_LINK_SALT, max_age=MAGIC_LINK_MAX_AGE)
+    except signing.BadSignature:
+        return Status(401, Error(detail='Link inválido ou expirado'))
+
+    user = User.objects.filter(pk=uid, is_active=True).first()
+    if not user:
+        return Status(401, Error(detail='Link inválido ou expirado'))
+
+    refresh = RefreshToken.for_user(user)
+    return Status(200, TokenOut(access=str(refresh.access_token), refresh=str(refresh)))  # type: ignore
+
+
 @router.get('/me', response=UserOut)
 def me(request):
     return request.auth
@@ -252,6 +278,19 @@ def resend_welcome(request, user_id: int):
     reset_url = f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
     async_task('accounts.tasks.send_welcome_email_with_reset', user.pk, reset_url)
     return Status(200, MessageOut(detail='Email enviado'))
+
+
+@router.post('/admin/users/{user_id}/login-link', response={200: MagicLinkOut, 404: Error})
+def generate_login_link(request, user_id: int):
+    # Gera link de login automático (24h). Endpoint reutilizável: admin copia agora,
+    # integração WhatsApp chama depois. Stateless — nada gravado no banco.
+    staff_required(request)
+    user = get_object_or_404(User, id=user_id)
+
+    token = signing.dumps(user.pk, salt=MAGIC_LINK_SALT)
+    url = f'{settings.FRONTEND_URL}/magic?token={token}'
+    expires_at = timezone.now() + timedelta(seconds=MAGIC_LINK_MAX_AGE)
+    return Status(200, MagicLinkOut(url=url, expires_at=expires_at))
 
 
 BULK_CHUNK_SIZE = 300

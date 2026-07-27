@@ -3,6 +3,7 @@ const PUBLIC_ROUTES = new Set<string>([
   '/register',
   '/forgot-password',
   '/reset-password',
+  '/magic',
 ])
 
 const AUTH_ENTRY_ROUTES = new Set<string>(['/login', '/register'])

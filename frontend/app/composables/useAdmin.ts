@@ -304,6 +304,10 @@ export const useAdmin = () => {
       api<{ detail: string }>(`/auth/admin/users/${id}/resend-welcome`, {
         method: 'POST',
       }),
+    generateLoginLink: (id: number) =>
+      api<{ url: string; expires_at: string }>(`/auth/admin/users/${id}/login-link`, {
+        method: 'POST',
+      }),
     // Importação roda no worker (sem timeout HTTP): POST enfileira e responde na
     // hora; aqui fazemos poll do status até terminar. Escala pra qualquer tamanho.
     bulkImport: async (body: BulkImportBody): Promise<BulkImportResult> => {
