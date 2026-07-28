@@ -153,7 +153,7 @@ const retake = () => {
       <p class="text-sm">
         <strong class="font-bold">Atenção: você tem apenas 1 tentativa.</strong>
         <template v-if="timed">
-          Enviar as respostas ou deixar o tempo esgotar encerra o exercício — não dá para refazer.
+          Enviar as respostas ou deixar o tempo esgotar encerra o exercício. Não dá para refazer!
         </template>
         <template v-else>
           Depois de enviar não será possível refazer.
