@@ -1,17 +1,31 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { BookOpen, Home, Image as ImageIcon, LogOut, Plug, Users } from 'lucide-vue-next'
+import { computed, onMounted, ref, watch } from 'vue'
+import { BookOpen, Home, Image as ImageIcon, LogOut, MessageSquare, Plug, Users } from 'lucide-vue-next'
 
 const route = useRoute()
 const { logout } = useAuth()
 const { data: me } = useMe()
+const admin = useAdmin()
 
 const items = [
   { to: '/admin/courses', label: 'Cursos', icon: BookOpen, match: '/admin/courses' },
   { to: '/admin/users', label: 'Alunos', icon: Users, match: '/admin/users' },
+  { to: '/admin/comments', label: 'Comentários', icon: MessageSquare, match: '/admin/comments' },
   { to: '/admin/banners', label: 'Banners', icon: ImageIcon, match: '/admin/banners' },
   { to: '/admin/integracoes', label: 'Integrações', icon: Plug, match: '/admin/integracoes' },
 ]
+
+// Badge = comentários pendentes de moderação. Recarrega ao navegar (após moderar, some).
+const unreadCount = ref(0)
+const refreshUnread = async () => {
+  try {
+    unreadCount.value = (await admin.commentsUnreadCount()).count
+  } catch {
+    /* silencioso — badge é best-effort */
+  }
+}
+onMounted(refreshUnread)
+watch(() => route.path, refreshUnread)
 
 const initial = computed(
   () => (me.value?.name || me.value?.email || '?').charAt(0).toUpperCase()
@@ -49,6 +63,10 @@ const isActive = (match: string) => route.path.startsWith(match)
       >
         <component :is="item.icon" class="w-4 h-4" />
         {{ item.label }}
+        <span
+          v-if="item.to === '/admin/comments' && unreadCount > 0"
+          class="ml-auto min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold"
+        >{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
       </NuxtLink>
 
       <div class="my-3 border-t border-white/5" />

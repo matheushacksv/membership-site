@@ -1,4 +1,37 @@
 import type { BannerItem, CourseListItem } from '~/composables/useCatalog'
+import type { CommentAuthor } from '~/composables/useComments'
+
+export interface AdminCommentAuthor extends CommentAuthor {
+  email: string
+}
+
+export interface AdminCommentThread {
+  id: number
+  body: string
+  created_at: string
+  updated_at: string | null
+  resolved_at?: string | null
+  author: AdminCommentAuthor
+  replies: AdminCommentThread[]
+}
+
+export interface CommentTreeLesson {
+  lesson_id: number
+  lesson_name: string
+  pending_count: number
+}
+
+export interface CommentTreeModule {
+  module_id: number
+  module_name: string
+  lessons: CommentTreeLesson[]
+}
+
+export interface CommentTreeCourse {
+  course_id: number
+  course_name: string
+  modules: CommentTreeModule[]
+}
 
 export interface AdminCourse extends CourseListItem {
   created_at?: string
@@ -425,5 +458,24 @@ export const useAdmin = () => {
     ) => api<BannerItem>(`/admin/banners/${id}`, { method: 'PUT', body }),
     deleteBanner: (id: number) =>
       api(`/admin/banners/${id}`, { method: 'DELETE' }),
+
+    // Comentários (moderação) — fila de pendentes
+    listCommentsTree: () => api<CommentTreeCourse[]>('/admin/comments/tree'),
+    commentsUnreadCount: () =>
+      api<{ count: number }>('/admin/comments/unread-count'),
+    // Abrir a aula = moderar (marca pendentes vistos e retorna a thread).
+    openLessonComments: (lessonId: number) =>
+      api<AdminCommentThread[]>(`/admin/lessons/${lessonId}/comments/read`, {
+        method: 'POST',
+      }),
+    listLessonComments: (lessonId: number) => // só leitura (reload após ação)
+      api<AdminCommentThread[]>(`/admin/lessons/${lessonId}/comments`),
+    replyComment: (commentId: number, body: string) =>
+      api<AdminCommentThread>(`/admin/comments/${commentId}/reply`, {
+        method: 'POST',
+        body: { body },
+      }),
+    deleteComment: (id: number) => // reusa endpoint do aluno (staff já permitido)
+      api(`/catalog/comments/${id}`, { method: 'DELETE' }),
   }
 }

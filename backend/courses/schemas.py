@@ -311,8 +311,33 @@ class CommentOut(Schema):
     body: str
     created_at: datetime
     updated_at: datetime | None
+    resolved_at: datetime | None = None
     author: CommentAuthorOut
     replies: list['CommentOut'] = []
+
+
+class AdminCommentAuthorOut(Schema):
+    """Igual ao CommentAuthorOut mas com email — só pro admin (nunca exposto ao aluno)."""
+
+    id: int
+    name: str | None
+    email: str
+    avatar: str | None = None
+    is_staff: bool
+
+    @staticmethod
+    def resolve_avatar(obj) -> str | None:
+        return obj.avatar.url if obj.avatar else None
+
+
+class AdminCommentOut(Schema):
+    id: int
+    body: str
+    created_at: datetime
+    updated_at: datetime | None
+    resolved_at: datetime | None = None
+    author: AdminCommentAuthorOut
+    replies: list['AdminCommentOut'] = []
 
 
 class CommentIn(Schema):
@@ -322,6 +347,28 @@ class CommentIn(Schema):
 
 class CommentUpdateIn(Schema):
     body: str = Field(min_length=1, max_length=2000)
+
+
+class AdminCommentTreeLessonOut(Schema):
+    lesson_id: int
+    lesson_name: str
+    pending_count: int  # comentários não-staff ainda não moderados
+
+
+class AdminCommentTreeModuleOut(Schema):
+    module_id: int
+    module_name: str
+    lessons: list[AdminCommentTreeLessonOut]
+
+
+class AdminCommentTreeCourseOut(Schema):
+    course_id: int
+    course_name: str
+    modules: list[AdminCommentTreeModuleOut]
+
+
+class UnreadCountOut(Schema):
+    count: int
 
 
 # Forms
