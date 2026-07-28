@@ -88,6 +88,7 @@ from .schemas import (
     QuizSubmitIn,
     QuizTimerOut,
     UnreadCountOut,
+    WebhookTestIn,
 )
 
 logger = logging.getLogger(__name__)
@@ -669,6 +670,18 @@ def create_course(request, data: CourseIn):
     )
 
     return Status(201, course)
+
+
+@admin_router.post('/courses/quiz-webhook/test', response={200: dict, 400: Error, 403: Error})
+def test_quiz_webhook(request, data: WebhookTestIn):
+    staff_required(request)
+
+    url = (data.url or '').strip()
+    if not url:
+        return Status(400, Error(detail='Informe a URL do webhook'))
+    from .tasks import check_quiz_webhook  # lazy: evita import de rede no boot
+
+    return Status(200, check_quiz_webhook(url))
 
 
 @admin_router.put('/courses/{course_id}', response={200: CourseOut, 403: Error, 404: Error})

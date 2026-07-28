@@ -275,6 +275,9 @@ export const useAdmin = () => {
       api<AdminCourse>('/admin/courses', { method: 'POST', body }),
     updateCourse: (id: number, body: Partial<CourseInput>) =>
       api<AdminCourse>(`/admin/courses/${id}`, { method: 'PUT', body }),
+    testQuizWebhook: (url: string) =>
+      api<{ ok: boolean; status: number; detail: string }>(
+        '/admin/courses/quiz-webhook/test', { method: 'POST', body: { url } }),
     deleteCourse: (id: number) =>
       api(`/admin/courses/${id}`, { method: 'DELETE' }),
     uploadCourseImage: (id: number, file: File) => {

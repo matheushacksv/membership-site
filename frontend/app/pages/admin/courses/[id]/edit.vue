@@ -74,6 +74,21 @@ const copyWebhook = async () => {
   }
 }
 
+const testingWebhook = ref(false)
+const testWebhook = async () => {
+  const url = form.quiz_webhook_url?.trim()
+  if (!url) { toast.error('Preencha a URL do webhook'); return }
+  testingWebhook.value = true
+  try {
+    const res = await admin.testQuizWebhook(url)
+    res.ok ? toast.success(res.detail) : toast.error(res.detail)
+  } catch {
+    toast.error('Erro ao testar webhook')
+  } finally {
+    testingWebhook.value = false
+  }
+}
+
 // LP de curso gratuito: slug vira /lp/<slug> no MESMO domínio do front (cursos.*).
 const slugify = (s: string) =>
   s
@@ -448,6 +463,16 @@ const savedLabel = computed(() => {
               class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none font-mono"
             >
             <p class="text-[11px] text-neutral-500 mt-1">POST com aluno + respostas sempre que um exercício deste curso for finalizado.</p>
+            <button
+              type="button"
+              :disabled="testingWebhook || !form.quiz_webhook_url"
+              class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold uppercase tracking-wider text-neutral-300 disabled:opacity-40"
+              @click="testWebhook"
+            >
+              <Loader2 v-if="testingWebhook" class="w-3.5 h-3.5 animate-spin" />
+              <Webhook v-else class="w-3.5 h-3.5" />
+              Testar webhook
+            </button>
           </div>
 
           <div>

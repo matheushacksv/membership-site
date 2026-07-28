@@ -1,5 +1,7 @@
+import urllib.error
 from datetime import timedelta
 from types import SimpleNamespace
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -27,11 +29,12 @@ from .api import (
     reply_comment,
     start_lesson_quiz,
     submit_lesson_quiz,
+    test_quiz_webhook,
 )
 from .helpers import _module_locked
 from .models import Course, Lesson, LessonAttachment, LessonComment, Module, QuizAttempt
-from .schemas import CommentIn, CommentUpdateIn, CopyModuleIn, FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
-from .tasks import _quiz_webhook_payload, finalize_quiz_timeout
+from .schemas import CommentIn, CommentUpdateIn, CopyModuleIn, FreeSignupIn, LinkAttachmentIn, QuizSubmitIn, WebhookTestIn
+from .tasks import _quiz_webhook_payload, _sample_quiz_payload, check_quiz_webhook, finalize_quiz_timeout
 
 
 class LinkAttachmentTests(TestCase):
@@ -543,3 +546,36 @@ class CommentToggleTests(TestCase):
         res = create_comment(self.req, quiz.id, CommentIn(body='resposta é B'))
         self.assertEqual(res.status_code, 403)
         self.assertFalse(LessonComment.objects.filter(lesson=quiz).exists())
+
+
+class QuizWebhookTestButtonTests(TestCase):
+    """Botão de testar webhook: dispara payload fictício e reporta ok/erro."""
+
+    URLOPEN = 'courses.tasks.urllib.request.urlopen'
+
+    def test_sample_payload_bate_com_real(self):
+        # Guard anti-drift: chaves de topo do fictício == as do payload real.
+        user = get_user_model().objects.create_user(email='w@x.com', password='x', name='W')
+        course = Course.objects.create(name='C', category=Course.Category.SALES)
+        module = Module.objects.create(course=course, name='M', order=0)
+        lesson = Lesson.objects.create(module=module, name='Ex', order=0, kind=Lesson.Kind.QUIZ)
+        real = _quiz_webhook_payload(lesson, user, _quiz_result([], {}), {})
+        self.assertLessEqual(set(real), set(_sample_quiz_payload()))
+
+    def test_sucesso_retorna_ok(self):
+        with mock.patch(self.URLOPEN) as urlopen:
+            res = check_quiz_webhook('http://exemplo.com/hook')
+        urlopen.assert_called_once()
+        self.assertTrue(res['ok'])
+
+    def test_http_error_reporta_status(self):
+        err = urllib.error.HTTPError('http://x', 500, 'err', {}, None)
+        with mock.patch(self.URLOPEN, side_effect=err):
+            res = check_quiz_webhook('http://x')
+        self.assertFalse(res['ok'])
+        self.assertEqual(res['status'], 500)
+
+    def test_url_vazia_400(self):
+        staff = SimpleNamespace(auth=SimpleNamespace(is_staff=True))
+        res = test_quiz_webhook(staff, WebhookTestIn(url='   '))
+        self.assertEqual(res.status_code, 400)

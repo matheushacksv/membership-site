@@ -256,6 +256,10 @@ class CourseUpdateIn(Schema):
     comments_enabled: bool | None = None
 
 
+class WebhookTestIn(Schema):
+    url: str
+
+
 # --- LP de curso gratuito (endpoints públicos /catalog/free/*) ---
 class FreeCourseLPOut(Schema):
     id: int
