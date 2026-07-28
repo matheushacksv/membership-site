@@ -53,6 +53,7 @@ from .schemas import (
     CommentIn,
     CommentOut,
     CommentUpdateIn,
+    CopyModuleIn,
     CourseDetailOut,
     CourseFormIn,
     CourseFormOut,
@@ -74,6 +75,7 @@ from .schemas import (
     LessonUpdateIn,
     LinkAttachmentIn,
     ModuleIn,
+    ModuleLibraryOut,
     ModuleOut,
     ModuleUpdateIn,
     QuizQuestionIn,
@@ -779,6 +781,70 @@ def reorder_modules(request, course_id: int, order: list[int]):
             Module.objects.filter(id=module_id, course_id=course_id).update(order=new_order)
 
     return Status(204, None)
+
+
+@admin_router.get('/module-library', response=list[ModuleLibraryOut])
+def module_library(request, q: str = '', exclude_course_id: int | None = None, limit: int = 200):
+    """Módulos de qualquer curso, pro admin importar (copiar) noutro curso.
+    Path com hífen p/ não colidir com /modules/{module_id} (int)."""
+    staff_required(request)
+
+    qs = Module.objects.select_related('course').annotate(lesson_count=Count('lessons'))
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(course__name__icontains=q))
+    if exclude_course_id:
+        qs = qs.exclude(course_id=exclude_course_id)
+    return qs.order_by('course__name', 'order')[:limit]
+
+
+@admin_router.post('/modules/{module_id}/copy', response={201: ModuleOut, 403: Error, 404: Error})
+def copy_module(request, module_id: int, data: CopyModuleIn):
+    """Deep-clone de um módulo (aulas + anexos) noutro curso. Snapshot independente:
+    editar o original depois não reflete na cópia. Anexos apontam pra mesma chave no
+    MinIO (sem re-upload, igual link_attachment). Progresso/quiz ficam separados porque
+    as aulas têm ids novos. access_days sai do curso destino (acesso é por matrícula)."""
+    staff_required(request)
+
+    src = get_object_or_404(Module.objects.prefetch_related('lessons__attachments'), id=module_id)
+    if not Course.objects.filter(id=data.course_id).exists():
+        return Status(404, Error(detail='Course not found'))
+
+    with transaction.atomic():
+        cur = Module.objects.filter(course_id=data.course_id).aggregate(models.Max('order'))['order__max']
+        new_module = Module.objects.create(
+            course_id=data.course_id,
+            name=src.name,
+            order=0 if cur is None else cur + 1,
+            is_published=False,  # entra despublicado; admin revisa e libera
+            requires_previous=src.requires_previous,
+        )
+        for lesson in src.lessons.all():  # order original já é único no módulo novo (fresco)
+            new_lesson = Lesson.objects.create(
+                module=new_module,
+                name=lesson.name,
+                kind=lesson.kind,
+                questions=lesson.questions,
+                description=lesson.description,
+                video_provider=lesson.video_provider,
+                video_id=lesson.video_id,
+                content=lesson.content,
+                duration_seconds=lesson.duration_seconds,
+                allow_retake=lesson.allow_retake,
+                time_limit_seconds=lesson.time_limit_seconds,
+                order=lesson.order,
+                is_published=lesson.is_published,
+            )
+            LessonAttachment.objects.bulk_create([
+                LessonAttachment(
+                    lesson=new_lesson,
+                    title=a.title,
+                    file_url=a.file_url.name,  # mesma chave MinIO, sem re-upload
+                    size_bytes=a.size_bytes,
+                    order=a.order,
+                )
+                for a in lesson.attachments.all()
+            ])
+    return Status(201, new_module)
 
 
 @admin_router.post('/lessons', response={201: LessonOut, 403: Error, 404: Error, 409: Error})

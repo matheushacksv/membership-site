@@ -41,6 +41,13 @@ export interface ModuleInput {
   requires_previous?: boolean
 }
 
+export interface ModuleLibraryItem {
+  id: number
+  name: string
+  course_name: string
+  lesson_count: number
+}
+
 export interface LessonItem {
   id: number
   module_id: number
@@ -258,6 +265,15 @@ export const useAdmin = () => {
       api(`/admin/courses/${course_id}/modules/reorder`, {
         method: 'PATCH',
         body: order,
+      }),
+    listModuleLibrary: (q = '', exclude_course_id?: number) =>
+      api<ModuleLibraryItem[]>('/admin/module-library', {
+        query: { q, exclude_course_id },
+      }),
+    copyModule: (module_id: number, course_id: number) =>
+      api<ModuleItem>(`/admin/modules/${module_id}/copy`, {
+        method: 'POST',
+        body: { course_id },
       }),
 
     // Lessons

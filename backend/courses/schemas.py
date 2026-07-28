@@ -145,6 +145,23 @@ class ModuleUpdateIn(Schema):
     requires_previous: bool | None = None
 
 
+class CopyModuleIn(Schema):
+    course_id: int  # curso destino
+
+
+class ModuleLibraryOut(Schema):
+    """Módulo de qualquer curso + de onde veio, pro picker de importação do admin."""
+
+    id: int
+    name: str
+    course_name: str
+    lesson_count: int  # via annotate(Count('lessons')) — sem resolver
+
+    @staticmethod
+    def resolve_course_name(obj) -> str:
+        return obj.course.name
+
+
 class ModuleOut(Schema):
     id: int
     name: str

@@ -9,18 +9,21 @@ from enrollments.models import CourseEnrollment, LessonProgress
 
 from .api import (
     QUIZ_TIMEOUT_GRACE,
+    _assert_enrolled_or_403,
     _quiz_result,
     attachment_library,
+    copy_module,
     free_course_lp,
     free_course_signup,
     get_lesson_quiz,
     link_attachment,
+    module_library,
     start_lesson_quiz,
     submit_lesson_quiz,
 )
 from .helpers import _module_locked
 from .models import Course, Lesson, LessonAttachment, Module, QuizAttempt
-from .schemas import FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
+from .schemas import CopyModuleIn, FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
 from .tasks import _quiz_webhook_payload, finalize_quiz_timeout
 
 
@@ -345,3 +348,83 @@ class FreeCourseSignupTests(TestCase):
             UserSignup(name='Zé', email='ze@example.com', password='senha12345', repeat_password='senha12345'),
         )
         self.assertEqual(CourseEnrollment.objects.count(), 0)  # /register nunca dá curso
+
+
+class CopyModuleTests(TestCase):
+    """Importar módulo entre cursos = deep-clone (snapshot). Independente do original;
+    anexos apontam pra mesma chave no MinIO; access_days sai do curso destino."""
+
+    def setUp(self):
+        self.request = SimpleNamespace(auth=SimpleNamespace(is_staff=True))
+        # Curso X (origem) com 1 módulo, 2 aulas, 1 anexo.
+        self.x = Course.objects.create(name='Curso X', category=Course.Category.SALES)
+        self.src_module = Module.objects.create(course=self.x, name='Prospecção', order=0, is_published=True)
+        self.src_l1 = Lesson.objects.create(module=self.src_module, name='Aula 1', order=0, is_published=True)
+        self.src_l2 = Lesson.objects.create(module=self.src_module, name='Aula 2', order=1, is_published=True)
+        LessonAttachment.objects.create(
+            lesson=self.src_l1, title='Material.pdf', file_url='attachments/abc123.pdf', size_bytes=999, order=0
+        )
+        # Curso Y (destino), grátis, com 30 dias de acesso e um módulo já em order=0.
+        self.y = Course.objects.create(name='Curso Y', category=Course.Category.SALES, is_free=True, access_days=30)
+        Module.objects.create(course=self.y, name='Intro', order=0)
+
+    def _copy(self, target):
+        result = copy_module(self.request, self.src_module.id, CopyModuleIn(course_id=target.id))
+        self.assertEqual(result.status_code, 201)
+        return Module.objects.get(id=result.value.id)
+
+    def test_clona_conteudo_e_fica_independente(self):
+        new_mod = self._copy(self.y)
+
+        # Módulo novo no curso destino, ids diferentes, entra despublicado.
+        self.assertEqual(new_mod.course_id, self.y.id)
+        self.assertNotEqual(new_mod.id, self.src_module.id)
+        self.assertFalse(new_mod.is_published)
+        self.assertEqual(new_mod.order, 1)  # próximo livre (destino já tinha order=0)
+
+        # Aulas clonadas com ids novos, mesmos dados.
+        new_lessons = list(new_mod.lessons.order_by('order'))
+        self.assertEqual([l.name for l in new_lessons], ['Aula 1', 'Aula 2'])
+        self.assertNotIn(self.src_l1.id, [l.id for l in new_lessons])
+
+        # Anexo aponta pra MESMA chave no storage (sem re-upload).
+        att = new_lessons[0].attachments.get()
+        self.assertNotEqual(att.lesson_id, self.src_l1.id)
+        self.assertEqual(att.file_url.name, 'attachments/abc123.pdf')
+
+        # Snapshot: editar o original depois NÃO muda a cópia.
+        self.src_l1.name = 'Aula 1 editada'
+        self.src_l1.save(update_fields=['name'])
+        new_lessons[0].refresh_from_db()
+        self.assertEqual(new_lessons[0].name, 'Aula 1')
+
+    def test_acesso_vem_do_curso_destino(self):
+        new_mod = self._copy(self.y)
+        copied = Lesson.objects.select_related('module').get(module=new_mod, name='Aula 1')
+        user = get_user_model().objects.create_user(email='aluno@x.com', password='x', name='Aluno')
+        req = SimpleNamespace(auth=user)
+
+        # Só matrícula em X (origem) NÃO dá acesso à cópia (que vive em Y).
+        CourseEnrollment.objects.create(user=user, course=self.x, is_active=True)
+        denied = _assert_enrolled_or_403(req, copied)
+        self.assertIsNotNone(denied)
+        self.assertEqual(denied.status_code, 403)
+
+        # Matrícula no destino Y libera — access_days é o de Y.
+        CourseEnrollment.objects.create(
+            user=user, course=self.y, is_active=True, expires_at=timezone.now() + timedelta(days=30)
+        )
+        self.assertIsNone(_assert_enrolled_or_403(req, copied))
+
+    def test_library_lista_filtra_e_exclui(self):
+        rows = {m.id: m for m in module_library(self.request)}
+        self.assertIn(self.src_module.id, rows)
+        self.assertEqual(rows[self.src_module.id].course.name, 'Curso X')  # resolver do schema usa isso
+        self.assertEqual(rows[self.src_module.id].lesson_count, 2)  # annotate, existe no obj cru
+
+        # q casa nome do módulo ou do curso.
+        self.assertEqual([m.id for m in module_library(self.request, q='Prospec')], [self.src_module.id])
+
+        # exclude_course_id tira os módulos do próprio curso.
+        ids = [m.id for m in module_library(self.request, exclude_course_id=self.x.id)]
+        self.assertNotIn(self.src_module.id, ids)
