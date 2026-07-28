@@ -47,6 +47,7 @@ class LessonOut(Schema):
     duration_seconds: int
     content: str | None
     allow_retake: bool = True
+    time_limit_seconds: int = 0
     order: int
     is_published: bool = False
     attachments: list[LessonAttachmentOut] = []
@@ -67,6 +68,7 @@ class LessonIn(Schema):
     duration_seconds: int | None = None
     content: str | None = None
     allow_retake: bool = True
+    time_limit_seconds: int = 0
     order: int = 0
     is_published: bool = False
 
@@ -90,6 +92,7 @@ class LessonUpdateIn(Schema):
     duration_seconds: int | None = None
     content: str | None = None
     allow_retake: bool | None = None
+    time_limit_seconds: int | None = None
     order: int | None = None
     is_published: bool | None = None
 
@@ -372,6 +375,13 @@ class QuizSaveIn(Schema):
 class QuizSubmitIn(Schema):
     # int = índice da opção (escolha); str = texto (dissertativa).
     answers: dict[str, int | str] = {}
+    timed_out: bool = False  # só sinal de UX; o servidor revalida o tempo
+
+
+class QuizTimerOut(Schema):
+    started_at: datetime
+    expires_at: datetime
+    server_now: datetime
 
 
 class QuizResultItem(Schema):
@@ -393,6 +403,10 @@ class QuizStateOut(Schema):
     questions: list[QuizQuestionOut] = []
     attempt: QuizResultOut | None = None
     allow_retake: bool = True
+    time_limit_seconds: int = 0
+    timer: QuizTimerOut | None = None  # tentativa em curso (retoma o tempo restante)
+    attempts: int = 0
+    timed_out: bool = False
 
 
 class QuizResponseAdminOut(Schema):
@@ -400,6 +414,8 @@ class QuizResponseAdminOut(Schema):
     user_email: str
     score: int
     total: int
+    attempts: int = 0
+    timed_out: bool = False
     answers: dict
     updated_at: datetime
 

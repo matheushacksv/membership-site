@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
@@ -9,7 +10,8 @@ from django.db.utils import IntegrityError
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django_q.tasks import async_task
+from django_q.models import Schedule
+from django_q.tasks import async_task, schedule
 from ninja import Form, Router, Status
 from ninja.files import UploadedFile
 
@@ -71,6 +73,7 @@ from .schemas import (
     QuizSaveIn,
     QuizStateOut,
     QuizSubmitIn,
+    QuizTimerOut,
 )
 
 catalog_router = Router(tags=['Catalog'])
@@ -333,21 +336,116 @@ def _quiz_result(questions: list[dict], answers: dict) -> QuizResultOut:
     return QuizResultOut(score=score, total=len(choice), results=results)
 
 
+QUIZ_TIMEOUT_GRACE = 3  # segundos de folga p/ latência de rede (submit no limite não vira falha)
+
+
+def _attempt_result(questions: list[dict], attempt) -> QuizResultOut:
+    """Resultado de uma tentativa já finalizada. Respeita a nota guardada — timeout ficou
+    com score=0 mesmo que a correção das respostas parciais desse mais."""
+    r = _quiz_result(questions, attempt.answers)
+    r.score = attempt.score
+    r.total = attempt.total
+    return r
+
+
+def _quiz_timer_out(lesson, attempt) -> QuizTimerOut | None:
+    """Timer da tentativa em curso (started_at setado, submitted_at nulo). Deixa o front
+    retomar o tempo restante após reload sem confiar no relógio do cliente."""
+    if not lesson.time_limit_seconds or not attempt or attempt.submitted_at or not attempt.started_at:
+        return None
+    return QuizTimerOut(
+        started_at=attempt.started_at,
+        expires_at=attempt.started_at + timedelta(seconds=lesson.time_limit_seconds),
+        server_now=timezone.now(),
+    )
+
+
+def _quiz_expired(lesson, attempt, now) -> bool:
+    """Tentativa aberta cujo tempo (+GRACE) já estourou no relógio do servidor."""
+    return bool(
+        lesson.time_limit_seconds
+        and attempt
+        and attempt.started_at
+        and not attempt.submitted_at
+        and now > attempt.started_at + timedelta(seconds=lesson.time_limit_seconds + QUIZ_TIMEOUT_GRACE)
+    )
+
+
 @catalog_router.get('/lessons/{lesson_id}/quiz', response={200: QuizStateOut, 403: Error, 404: Error})
 def get_lesson_quiz(request, lesson_id: int):
-    lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
+    lesson = get_object_or_404(Lesson.objects.select_related('module__course'), id=lesson_id)
     if denied := _assert_enrolled_or_403(request, lesson):  # acesso + lock de módulo
         return denied
 
     questions = lesson.questions or []
     attempt = QuizAttempt.objects.filter(lesson=lesson, user=request.auth).first()
-    # QuizQuestionOut derruba correct/explanation; a tentativa anterior já pode trazer
-    # o gabarito porque o aluno já respondeu.
+
+    # Detecção preguiçosa: tentativa aberta que já venceu vira falha por timeout aqui
+    # mesmo — defesa extra à task ONCE. A guarda atômica evita webhook duplicado.
+    if _quiz_expired(lesson, attempt, timezone.now()):
+        from .tasks import _apply_timeout
+
+        _apply_timeout(lesson, request.auth, attempt)
+        attempt.refresh_from_db()
+
+    # Só é "resultado" quando a tentativa foi finalizada (submitted_at != None).
+    submitted = attempt and attempt.submitted_at
     return Status(200, {
         'questions': questions,
-        'attempt': _quiz_result(questions, attempt.answers) if attempt else None,
+        'attempt': _attempt_result(questions, attempt) if submitted else None,
         'allow_retake': lesson.allow_retake,
+        'time_limit_seconds': lesson.time_limit_seconds,
+        'timer': _quiz_timer_out(lesson, attempt),
+        'attempts': attempt.attempts if attempt else 0,
+        'timed_out': bool(attempt.timed_out) if attempt else False,
     })
+
+
+@catalog_router.post('/lessons/{lesson_id}/quiz/start', response={200: QuizTimerOut, 400: Error, 403: Error, 404: Error, 409: Error})
+def start_lesson_quiz(request, lesson_id: int):
+    """Marca o início da tentativa cronometrada (fonte da verdade do tempo é o servidor) e
+    agenda o vencimento. Reload não estende o tempo — devolve o mesmo timer."""
+    lesson = get_object_or_404(Lesson.objects.select_related('module__course'), id=lesson_id)
+    if denied := _assert_enrolled_or_403(request, lesson):
+        return denied
+    if not lesson.time_limit_seconds:
+        return Status(400, Error(detail='Exercício sem tempo'))
+
+    now = timezone.now()
+    attempt = QuizAttempt.objects.filter(lesson=lesson, user=request.auth).first()
+
+    # Tentativa aberta ainda no prazo → mesmo timer (anti-trapaça: reload não reseta).
+    if attempt and attempt.started_at and not attempt.submitted_at and not _quiz_expired(lesson, attempt, now):
+        return Status(200, _quiz_timer_out(lesson, attempt))
+
+    # Aberta mas vencida → fecha como falha antes de decidir recomeçar.
+    if _quiz_expired(lesson, attempt, now):
+        from .tasks import _apply_timeout
+
+        _apply_timeout(lesson, request.auth, attempt)
+        attempt.refresh_from_db()
+
+    # 1 tentativa: já finalizou e refazer desligado → travado.
+    if not lesson.allow_retake and attempt and attempt.submitted_at:
+        return Status(409, Error(detail='Exercício já respondido'))
+
+    if attempt:
+        QuizAttempt.objects.filter(pk=attempt.pk).update(started_at=now, submitted_at=None)
+        attempt.started_at, attempt.submitted_at = now, None
+    else:
+        attempt = QuizAttempt.objects.create(lesson=lesson, user=request.auth, started_at=now)
+
+    # ONCE no vencimento: fecha a falha mesmo se o aluno fechar a aba. Guarda por started_at
+    # torna a task idempotente; a ONCE se auto-remove após rodar (sem cancelamento).
+    schedule(
+        'courses.tasks.finalize_quiz_timeout',
+        lesson.id,
+        request.auth.id,
+        now.isoformat(),
+        schedule_type=Schedule.ONCE,
+        next_run=now + timedelta(seconds=lesson.time_limit_seconds + QUIZ_TIMEOUT_GRACE),
+    )
+    return Status(200, _quiz_timer_out(lesson, attempt))
 
 
 @catalog_router.post('/lessons/{lesson_id}/quiz', response={200: QuizResultOut, 400: Error, 403: Error, 404: Error, 409: Error})
@@ -360,22 +458,52 @@ def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
     if not questions:
         return Status(400, Error(detail='Aula sem perguntas'))
 
-    # 1 tentativa: já respondeu e o admin desligou o refazer → bloqueia sobrescrita.
-    if not lesson.allow_retake and QuizAttempt.objects.filter(lesson=lesson, user=request.auth).exists():
+    attempt = QuizAttempt.objects.filter(lesson=lesson, user=request.auth).first()
+
+    # 1 tentativa: já finalizou e o admin desligou o refazer → bloqueia sobrescrita.
+    if not lesson.allow_retake and attempt and attempt.submitted_at:
         return Status(409, Error(detail='Exercício já respondido'))
 
-    result = _quiz_result(questions, data.answers)
-    QuizAttempt.objects.update_or_create(
-        lesson=lesson,
-        user=request.auth,
-        defaults={'answers': data.answers, 'score': result.score, 'total': result.total},
+    now = timezone.now()
+    # Timeout se: (a) o cliente sinalizou (auto-submit no zero) — confiamos porque só
+    # PIORA p/ o aluno, sem incentivo a trapaça; ou (b) o servidor vê o tempo estourado
+    # (limite+GRACE) — pega quem manda timed_out=false e submete atrasado.
+    is_timeout = bool(lesson.time_limit_seconds) and (
+        data.timed_out or not attempt or not attempt.started_at or _quiz_expired(lesson, attempt, now)
     )
+
+    if is_timeout:
+        from .tasks import _apply_timeout
+
+        if attempt is None or attempt.submitted_at:
+            # submeteu sem start (ou tentativa já fechada) → abre uma p/ registrar a falha.
+            attempt = QuizAttempt.objects.create(lesson=lesson, user=request.auth, started_at=now)
+        result = _apply_timeout(lesson, request.auth, attempt, answers=data.answers)
+        if result is None:  # a task ONCE já fechou este ciclo
+            attempt.refresh_from_db()
+            result = _attempt_result(questions, attempt)
+        return Status(200, result)
+
+    result = _quiz_result(questions, data.answers)
+    defaults = {
+        'answers': data.answers,
+        'score': result.score,
+        'total': result.total,
+        'timed_out': False,
+        'submitted_at': now,
+        'started_at': None,
+    }
+    if attempt:
+        QuizAttempt.objects.filter(pk=attempt.pk).update(attempts=F('attempts') + 1, **defaults)
+        attempt.refresh_from_db(fields=['attempts'])
+    else:
+        attempt = QuizAttempt.objects.create(lesson=lesson, user=request.auth, attempts=1, **defaults)
 
     # Responder conclui a aula. `last_watched_at` é auto_now, não precisa passar.
     LessonProgress.objects.update_or_create(
         user=request.auth,
         lesson=lesson,
-        defaults={'completed_at': timezone.now()},
+        defaults={'completed_at': now},
     )
 
     if lesson.module.course.quiz_webhook_url:
@@ -384,7 +512,7 @@ def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
         async_task(
             'courses.tasks.fire_quiz_webhook',
             lesson.module.course.quiz_webhook_url,
-            _quiz_webhook_payload(lesson, request.auth, result, data.answers),
+            _quiz_webhook_payload(lesson, request.auth, result, data.answers, attempt=attempt.attempts),
             settings.QUIZ_WEBHOOK_SECRET,
         )
     return Status(200, result)
@@ -592,6 +720,7 @@ def create_lesson(request, data: LessonIn):
             content=data.content or '',
             duration_seconds=data.duration_seconds or 0,
             allow_retake=data.allow_retake,
+            time_limit_seconds=data.time_limit_seconds or 0,
             order=data.order if data.order > 0 else next_order,
             is_published=data.is_published,
         )
@@ -845,7 +974,12 @@ def save_lesson_quiz(request, lesson_id: int, data: QuizSaveIn):
 @admin_router.get('/lessons/{lesson_id}/quiz/responses', response={200: list[QuizResponseAdminOut], 403: Error})
 def list_quiz_responses(request, lesson_id: int):
     staff_required(request)
-    qs = QuizAttempt.objects.filter(lesson_id=lesson_id).select_related('user').order_by('-updated_at')
+    # Só tentativas finalizadas (ignora as em curso, ainda sem submit).
+    qs = (
+        QuizAttempt.objects.filter(lesson_id=lesson_id, submitted_at__isnull=False)
+        .select_related('user')
+        .order_by('-updated_at')
+    )
     return Status(200, list(qs))
 
 

@@ -89,10 +89,20 @@ export interface QuizResult {
   results: QuizResultItem[]
 }
 
+export interface QuizTimer {
+  started_at: string
+  expires_at: string
+  server_now: string
+}
+
 export interface QuizState {
   questions: QuizQuestion[]
   attempt: QuizResult | null
   allow_retake: boolean
+  time_limit_seconds: number
+  timer: QuizTimer | null
+  attempts: number
+  timed_out: boolean
 }
 
 export const useCourse = () => {
@@ -101,10 +111,16 @@ export const useCourse = () => {
     detail: (id: number) => api<CourseDetail>(`/catalog/courses/${id}`),
     getQuiz: (lessonId: number) =>
       api<QuizState>(`/catalog/lessons/${lessonId}/quiz`),
-    submitQuiz: (lessonId: number, answers: Record<string, number | string>) =>
+    startQuiz: (lessonId: number) =>
+      api<QuizTimer>(`/catalog/lessons/${lessonId}/quiz/start`, { method: 'POST' }),
+    submitQuiz: (
+      lessonId: number,
+      answers: Record<string, number | string>,
+      timed_out = false
+    ) =>
       api<QuizResult>(`/catalog/lessons/${lessonId}/quiz`, {
         method: 'POST',
-        body: { answers },
+        body: { answers, timed_out },
       }),
     progress: (id: number) => api<CourseProgress>(`/enrollments/me/courses/${id}/progress`),
     markProgress: (lessonId: number, watch_seconds: number, completed: boolean) =>

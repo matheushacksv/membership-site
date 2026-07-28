@@ -67,6 +67,7 @@ class Lesson(models.Model):
     content = models.TextField(blank=True, default='')
     duration_seconds = models.PositiveIntegerField(default=0)
     allow_retake = models.BooleanField(default=True, help_text='Exercício: permitir refazer. Desligado = 1 tentativa')
+    time_limit_seconds = models.PositiveIntegerField(default=0, help_text='Exercício: tempo em segundos. 0 = sem tempo')
     order = models.IntegerField(default=0)
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -145,6 +146,10 @@ class QuizAttempt(models.Model):
     answers = models.JSONField(default=dict)  # {key: índice escolhido}
     score = models.PositiveIntegerField(default=0)
     total = models.PositiveIntegerField(default=0)
+    attempts = models.PositiveIntegerField(default=0)  # nº de finalizações (submit ou timeout)
+    timed_out = models.BooleanField(default=False)  # a última tentativa venceu no tempo
+    started_at = models.DateTimeField(null=True, blank=True)  # início da tentativa em curso
+    submitted_at = models.DateTimeField(null=True, blank=True)  # finalização; nulo = tentativa aberta
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
