@@ -47,6 +47,8 @@ from .models import (
     QuizAttempt,
 )
 from .schemas import (
+    AdminCommentOut,
+    AdminCommentTreeCourseOut,
     AttachmentLibraryOut,
     BannerOut,
     BannerUpdateIn,
@@ -85,6 +87,7 @@ from .schemas import (
     QuizStateOut,
     QuizSubmitIn,
     QuizTimerOut,
+    UnreadCountOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -1129,6 +1132,94 @@ def list_quiz_responses(request, lesson_id: int):
         .order_by('-updated_at')
     )
     return Status(200, list(qs))
+
+
+# * ----------------------------------------- * #
+# ? ------- Comment Moderation (admin) ------- ? #
+# * ----------------------------------------- * #
+
+
+def _pending_q():
+    """Comentário que ainda precisa de moderação: de aluno e não resolvido."""
+    return Q(comments__resolved_at__isnull=True) & Q(comments__author__is_staff=False)
+
+
+def _resolve_thread(root_id: int):
+    """Marca a thread inteira (raiz + respostas) como moderada — sai da fila."""
+    LessonComment.objects.filter(Q(id=root_id) | Q(parent_id=root_id)).update(resolved_at=timezone.now())
+
+
+@admin_router.get('/comments/tree', response=list[AdminCommentTreeCourseOut])
+def comments_tree(request):
+    """Fila de moderação: Curso > Módulo > Aula, só aulas com comentário PENDENTE."""
+    staff_required(request)
+    qs = (
+        Lesson.objects.select_related('module__course')
+        .annotate(pending_count=Count('comments', distinct=True, filter=_pending_q()))
+        .filter(pending_count__gt=0)
+        .order_by('module__course__name', 'module__order', 'order')
+    )
+
+    courses: dict = {}
+    for lesson in qs:
+        course, module = lesson.module.course, lesson.module
+        cnode = courses.setdefault(course.id, {'course_id': course.id, 'course_name': course.name, 'modules': {}})
+        mnode = cnode['modules'].setdefault(
+            module.id, {'module_id': module.id, 'module_name': module.name, 'lessons': []}
+        )
+        mnode['lessons'].append(
+            {'lesson_id': lesson.id, 'lesson_name': lesson.name, 'pending_count': lesson.pending_count}
+        )
+    return [
+        {'course_id': c['course_id'], 'course_name': c['course_name'], 'modules': list(c['modules'].values())}
+        for c in courses.values()
+    ]
+
+
+@admin_router.get('/comments/unread-count', response=UnreadCountOut)
+def comments_unread_count(request):
+    """Badge = total de comentários pendentes (de aluno, não resolvidos)."""
+    staff_required(request)
+    count = LessonComment.objects.filter(author__is_staff=False, resolved_at__isnull=True).count()
+    return {'count': count}
+
+
+def _lesson_thread(lesson_id: int):
+    return (
+        LessonComment.objects.filter(lesson_id=lesson_id, parent__isnull=True)
+        .select_related('author')
+        .prefetch_related('replies__author')
+        .order_by('created_at')
+    )
+
+
+@admin_router.get('/lessons/{lesson_id}/comments', response=list[AdminCommentOut])
+def admin_lesson_comments(request, lesson_id: int):
+    """Thread da aula pro admin (só leitura) — sem gate de matrícula (mirror de list_comments)."""
+    staff_required(request)
+    return _lesson_thread(lesson_id)
+
+
+@admin_router.post('/lessons/{lesson_id}/comments/read', response=list[AdminCommentOut])
+def admin_read_lesson_comments(request, lesson_id: int):
+    """Abrir a aula = moderar: marca todos os pendentes da aula como vistos → saem da fila."""
+    staff_required(request)
+    LessonComment.objects.filter(
+        lesson_id=lesson_id, resolved_at__isnull=True, author__is_staff=False
+    ).update(resolved_at=timezone.now())
+    return _lesson_thread(lesson_id)
+
+
+@admin_router.post('/comments/{comment_id}/reply', response={201: AdminCommentOut, 404: Error})
+def reply_comment(request, comment_id: int, data: CommentUpdateIn):
+    staff_required(request)
+    target = get_object_or_404(LessonComment, id=comment_id)
+    root_id = target.parent_id or target.id  # 1 nível: anexa na raiz da thread
+    reply = LessonComment.objects.create(
+        lesson_id=target.lesson_id, author=request.auth, parent_id=root_id, body=data.body
+    )
+    _resolve_thread(root_id)  # responder = moderar → tira a thread da fila
+    return Status(201, reply)
 
 
 # * ----------------------------------------- * #

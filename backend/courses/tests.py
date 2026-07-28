@@ -11,19 +11,25 @@ from .api import (
     QUIZ_TIMEOUT_GRACE,
     _assert_enrolled_or_403,
     _quiz_result,
+    admin_lesson_comments,
+    admin_read_lesson_comments,
     attachment_library,
+    comments_tree,
+    comments_unread_count,
     copy_module,
+    delete_comment,
     free_course_lp,
     free_course_signup,
     get_lesson_quiz,
     link_attachment,
     module_library,
+    reply_comment,
     start_lesson_quiz,
     submit_lesson_quiz,
 )
 from .helpers import _module_locked
-from .models import Course, Lesson, LessonAttachment, Module, QuizAttempt
-from .schemas import CopyModuleIn, FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
+from .models import Course, Lesson, LessonAttachment, LessonComment, Module, QuizAttempt
+from .schemas import CommentUpdateIn, CopyModuleIn, FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
 from .tasks import _quiz_webhook_payload, finalize_quiz_timeout
 
 
@@ -428,3 +434,81 @@ class CopyModuleTests(TestCase):
         # exclude_course_id tira os módulos do próprio curso.
         ids = [m.id for m in module_library(self.request, exclude_course_id=self.x.id)]
         self.assertNotIn(self.src_module.id, ids)
+
+
+class AdminCommentModerationTests(TestCase):
+    """Fila de moderação: pendente aparece; responder/resolver/excluir tira da fila."""
+
+    def setUp(self):
+        self.staff = get_user_model().objects.create_user(
+            email='staff@x.com', password='x', name='Staff', is_staff=True
+        )
+        self.aluno = get_user_model().objects.create_user(email='aluno@x.com', password='x', name='Aluno')
+        self.req = SimpleNamespace(auth=self.staff)  # staff NÃO matriculado — prova bypass no reply
+
+        self.course = Course.objects.create(name='Curso Z', category=Course.Category.SALES)
+        self.module = Module.objects.create(course=self.course, name='Módulo 1', order=0)
+        self.lesson = Lesson.objects.create(module=self.module, name='Aula 1', order=0)
+        self.vazia = Lesson.objects.create(module=self.module, name='Aula sem coment', order=1)
+        self.root = LessonComment.objects.create(lesson=self.lesson, author=self.aluno, body='Dúvida')
+
+    def _fresh(self, obj):
+        return LessonComment.objects.get(id=obj.id)
+
+    def test_reply_anexa_na_raiz_ignora_matricula_e_resolve_thread(self):
+        reply_ch = LessonComment.objects.create(lesson=self.lesson, author=self.aluno, parent=self.root, body='eu tb')
+        res = reply_comment(self.req, self.root.id, CommentUpdateIn(body='Resposta'))
+        self.assertEqual(res.status_code, 201)
+        reply = res.value
+        self.assertEqual(reply.parent_id, self.root.id)
+        self.assertEqual(reply.author_id, self.staff.id)
+        self.assertEqual(reply.lesson_id, self.lesson.id)
+
+        # responder resolve a thread inteira (raiz + resposta do aluno) → sai da fila.
+        self.assertIsNotNone(self._fresh(self.root).resolved_at)
+        self.assertIsNotNone(self._fresh(reply_ch).resolved_at)
+        self.assertEqual(comments_unread_count(self.req)['count'], 0)
+
+        # reply de um reply → normaliza pra raiz (regra 1 nível).
+        res2 = reply_comment(self.req, reply.id, CommentUpdateIn(body='Mais uma'))
+        self.assertEqual(res2.value.parent_id, self.root.id)
+
+    def test_abrir_aula_resolve_pendentes_da_aula(self):
+        LessonComment.objects.create(lesson=self.lesson, author=self.aluno, parent=self.root, body='reply')
+        admin_read_lesson_comments(self.req, self.lesson.id)  # abrir = moderar
+        self.assertIsNotNone(self._fresh(self.root).resolved_at)
+        self.assertEqual(comments_tree(self.req), [])  # aula sai da fila
+        self.assertEqual(comments_unread_count(self.req)['count'], 0)
+
+    def test_tree_so_pendentes_agrupa_e_conta(self):
+        LessonComment.objects.create(lesson=self.lesson, author=self.aluno, parent=self.root, body='reply')
+        tree = comments_tree(self.req)
+
+        self.assertEqual(len(tree), 1)
+        lessons = tree[0]['modules'][0]['lessons']
+        self.assertEqual([l['lesson_id'] for l in lessons], [self.lesson.id])  # aula vazia ausente
+        self.assertEqual(lessons[0]['pending_count'], 2)  # root + reply do aluno
+
+        # abrir a aula zera; aula fica de fora.
+        admin_read_lesson_comments(self.req, self.lesson.id)
+        self.assertEqual(comments_tree(self.req), [])
+
+    def test_unread_exclui_staff_e_resolvidos(self):
+        LessonComment.objects.create(lesson=self.lesson, author=self.staff, parent=self.root, body='staff')  # não conta
+        outra = Lesson.objects.create(module=self.module, name='Aula 2', order=2)
+        LessonComment.objects.create(lesson=outra, author=self.aluno, body='outra pendente')
+        self.assertEqual(comments_unread_count(self.req)['count'], 2)  # 2 do aluno pendentes
+
+        admin_read_lesson_comments(self.req, self.lesson.id)  # resolve só a aula aberta
+        self.assertEqual(comments_unread_count(self.req)['count'], 1)  # sobra a da outra aula
+
+    def test_admin_lista_thread_sem_resolver(self):
+        LessonComment.objects.create(lesson=self.lesson, author=self.aluno, parent=self.root, body='reply')
+        roots = list(admin_lesson_comments(self.req, self.lesson.id))  # GET não resolve
+        self.assertEqual([c.id for c in roots], [self.root.id])  # só raízes
+        self.assertIsNone(self._fresh(self.root).resolved_at)  # GET é read-only
+
+    def test_staff_deleta_comentario_de_outro(self):
+        res = delete_comment(SimpleNamespace(auth=self.staff), self.root.id)
+        self.assertEqual(res.status_code, 204)
+        self.assertFalse(LessonComment.objects.filter(id=self.root.id).exists())

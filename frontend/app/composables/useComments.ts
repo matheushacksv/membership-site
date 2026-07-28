@@ -10,6 +10,7 @@ export interface CommentItem {
   body: string
   created_at: string
   updated_at: string | null
+  resolved_at?: string | null
   author: CommentAuthor
   replies: CommentItem[]
 }

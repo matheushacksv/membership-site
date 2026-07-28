@@ -107,6 +107,7 @@ class LessonComment(models.Model):
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)  # moderação: null = pendente na fila do admin
 
     class Meta:
         ordering = ['created_at']
