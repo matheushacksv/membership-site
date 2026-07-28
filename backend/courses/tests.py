@@ -560,7 +560,9 @@ class QuizWebhookTestButtonTests(TestCase):
         module = Module.objects.create(course=course, name='M', order=0)
         lesson = Lesson.objects.create(module=module, name='Ex', order=0, kind=Lesson.Kind.QUIZ)
         real = _quiz_webhook_payload(lesson, user, _quiz_result([], {}), {})
-        self.assertLessEqual(set(real), set(_sample_quiz_payload()))
+        sample = _sample_quiz_payload()
+        self.assertLessEqual(set(real), set(sample))
+        self.assertLessEqual(set(real['user']), set(sample['user']))  # phone incluso
 
     def test_sucesso_retorna_ok(self):
         with mock.patch(self.URLOPEN) as urlopen:
