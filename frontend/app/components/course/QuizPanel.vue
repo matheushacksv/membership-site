@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Loader2, CheckCircle2, XCircle, RotateCcw, AlertCircle, Timer, Play } from 'lucide-vue-next'
+import { Loader2, CheckCircle2, XCircle, RotateCcw, AlertCircle, AlertTriangle, Timer, Play } from 'lucide-vue-next'
 import type { QuizQuestion, QuizResult } from '~/composables/useCourse'
 
 const props = defineProps<{ lessonId: number }>()
@@ -144,6 +144,23 @@ const retake = () => {
 
 <template>
   <div class="rounded-xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
+    <!-- Aviso de 1 tentativa: enquanto o aluno ainda tem a chance (sem resultado). -->
+    <div
+      v-if="!loading && questions.length && !result && !allowRetake"
+      class="mb-4 flex items-start gap-2.5 px-3.5 py-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200"
+    >
+      <AlertTriangle class="w-5 h-5 mt-0.5 shrink-0 text-amber-400" />
+      <p class="text-sm">
+        <strong class="font-bold">Atenção: você tem apenas 1 tentativa.</strong>
+        <template v-if="timed">
+          Enviar as respostas ou deixar o tempo esgotar encerra o exercício — não dá para refazer.
+        </template>
+        <template v-else>
+          Depois de enviar não será possível refazer.
+        </template>
+      </p>
+    </div>
+
     <div v-if="loading" class="flex justify-center py-10">
       <Loader2 class="w-6 h-6 text-orange-500 animate-spin" />
     </div>
