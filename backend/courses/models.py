@@ -25,6 +25,7 @@ class Course(models.Model):
     kiwify_product_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
     access_days = models.PositiveIntegerField(null=True, blank=True, help_text='Dias de acesso após matrícula. Vazio = vitalício')
     quiz_webhook_url = models.URLField(max_length=500, blank=True, default='', help_text='POST disparado ao aluno concluir um exercício deste curso. Vazio = desligado')
+    comments_enabled = models.BooleanField(default=True, help_text='Alunos podem comentar nas aulas deste curso')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

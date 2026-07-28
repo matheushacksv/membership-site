@@ -17,6 +17,7 @@ from .api import (
     comments_tree,
     comments_unread_count,
     copy_module,
+    create_comment,
     delete_comment,
     free_course_lp,
     free_course_signup,
@@ -29,7 +30,7 @@ from .api import (
 )
 from .helpers import _module_locked
 from .models import Course, Lesson, LessonAttachment, LessonComment, Module, QuizAttempt
-from .schemas import CommentUpdateIn, CopyModuleIn, FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
+from .schemas import CommentIn, CommentUpdateIn, CopyModuleIn, FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
 from .tasks import _quiz_webhook_payload, finalize_quiz_timeout
 
 
@@ -512,3 +513,33 @@ class AdminCommentModerationTests(TestCase):
         res = delete_comment(SimpleNamespace(auth=self.staff), self.root.id)
         self.assertEqual(res.status_code, 204)
         self.assertFalse(LessonComment.objects.filter(id=self.root.id).exists())
+
+
+class CommentToggleTests(TestCase):
+    """comments_enabled=False bloqueia aluno criar comentário (403)."""
+
+    def setUp(self):
+        self.aluno = get_user_model().objects.create_user(email='a@x.com', password='x', name='Aluno')
+        self.course = Course.objects.create(name='Curso T', category=Course.Category.SALES)
+        self.module = Module.objects.create(course=self.course, name='M1', order=0)
+        self.lesson = Lesson.objects.create(module=self.module, name='A1', order=0)
+        CourseEnrollment.objects.create(user=self.aluno, course=self.course, is_active=True)
+        self.req = SimpleNamespace(auth=self.aluno)
+
+    def test_desligado_bloqueia_com_403(self):
+        self.course.comments_enabled = False
+        self.course.save(update_fields=['comments_enabled'])
+        res = create_comment(self.req, self.lesson.id, CommentIn(body='oi'))
+        self.assertEqual(res.status_code, 403)
+        self.assertFalse(LessonComment.objects.filter(lesson=self.lesson).exists())
+
+    def test_ligado_cria_normal(self):
+        res = create_comment(self.req, self.lesson.id, CommentIn(body='oi'))
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(LessonComment.objects.filter(lesson=self.lesson).exists())
+
+    def test_quiz_bloqueia_com_403(self):
+        quiz = Lesson.objects.create(module=self.module, name='Ex', order=1, kind=Lesson.Kind.QUIZ)
+        res = create_comment(self.req, quiz.id, CommentIn(body='resposta é B'))
+        self.assertEqual(res.status_code, 403)
+        self.assertFalse(LessonComment.objects.filter(lesson=quiz).exists())

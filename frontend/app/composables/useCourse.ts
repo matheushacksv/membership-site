@@ -38,6 +38,7 @@ export interface CourseDetail {
   is_active: boolean
   sales_page: string | null
   checkout_link: string | null
+  comments_enabled: boolean
   modules: Module[]
 }
 
