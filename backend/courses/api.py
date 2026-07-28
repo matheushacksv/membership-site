@@ -1,7 +1,11 @@
+import logging
+import secrets
 import uuid
 from datetime import timedelta
 from pathlib import Path
+from typing import cast
 
+from accounts.models import User, UserManager
 from django.conf import settings
 from django.db import models, transaction
 from django.db.models import Count, Exists, F, OuterRef, Prefetch, Subquery
@@ -14,10 +18,12 @@ from django_q.models import Schedule
 from django_q.tasks import async_task, schedule
 from ninja import Form, Router, Status
 from ninja.files import UploadedFile
+from ninja_jwt.tokens import RefreshToken
 
 from core.utils.errors import Error
 from core.utils.permissions import staff_required
 from enrollments.models import CourseEnrollment, LessonProgress
+from enrollments.services import expiry_from_days
 
 from .helpers import (
     _client_ip,
@@ -57,6 +63,9 @@ from .schemas import (
     DueFormOut,
     FormResponseAdminOut,
     FormResponseIn,
+    FreeCourseLPOut,
+    FreeSignupIn,
+    FreeSignupOut,
     LessonAttachmentIn,
     LessonAttachmentOut,
     LessonAttachmentUpdateIn,
@@ -75,6 +84,8 @@ from .schemas import (
     QuizSubmitIn,
     QuizTimerOut,
 )
+
+logger = logging.getLogger(__name__)
 
 catalog_router = Router(tags=['Catalog'])
 admin_router = Router(tags=['Courses Admin'])
@@ -551,6 +562,72 @@ def list_active_banners(request):
 
 
 # * ----------------------------------------- * #
+# ? --------- LP de curso gratuito ---------- ? #
+# * ----------------------------------------- * #
+# Públicos (auth=None): a LP fica no subdomínio de cursos, sem login. Só operam em
+# curso is_free=True — nunca matriculam num curso pago (gate de segurança).
+
+
+@catalog_router.get('/free/{slug}', response={200: FreeCourseLPOut, 404: Error}, auth=None)
+def free_course_lp(request, slug: str):
+    course = Course.objects.filter(slug=slug, is_free=True).first()
+    if not course:
+        return Status(404, Error(detail='Curso não encontrado'))
+    return Status(200, course)
+
+
+@catalog_router.post('/free/{slug}/signup', response={200: FreeSignupOut, 404: Error}, auth=None)
+def free_course_signup(request, slug: str, data: FreeSignupIn):
+    course = Course.objects.filter(slug=slug, is_free=True).first()
+    if not course:
+        return Status(404, Error(detail='Curso não encontrado'))
+
+    email = data.email.strip().lower()
+    phone = (data.phone or '').strip()
+
+    user = User.objects.filter(email=email).first()
+    created = user is None
+    if created:
+        user = cast(UserManager, User.objects).create_user(
+            email=email, password=secrets.token_urlsafe(32), name=(data.name or '').strip()
+        )
+        if phone:
+            user.phone = phone
+            user.save(update_fields=['phone'])
+    elif phone and not user.phone:
+        user.phone = phone
+        user.save(update_fields=['phone'])
+
+    CourseEnrollment.objects.get_or_create(
+        user=user,
+        course=course,
+        defaults={'source': 'lp', 'expires_at': expiry_from_days(course.access_days), 'is_active': True},
+    )
+
+    # Envio do acesso. Novo = email "definir senha"; existente = aviso de matrícula
+    # (login com a senha dele). WhatsApp (best-effort) só sai se EvolutionConfig ativo.
+    if created:
+        async_task('accounts.tasks.send_welcome_email_with_reset', user.pk)
+    else:
+        async_task('accounts.tasks.send_external_access_email', user.pk, [course.name])
+    if user.phone:
+        try:
+            async_task('integrations.tasks.send_whatsapp_access', user.pk)
+        except Exception:
+            logger.exception('Falha ao enfileirar whatsapp de acesso (LP)')
+
+    # Segurança: só auto-loga (emite JWT) conta RECÉM-criada nesta request. Email já
+    # existente jamais é logado por um POST público — evita account takeover. O dono
+    # da conta existente entra pelos canais que provam posse (email/WhatsApp).
+    access = refresh = None
+    if created:
+        token = RefreshToken.for_user(user)
+        access, refresh = str(token.access_token), str(token)
+
+    return Status(200, FreeSignupOut(created=created, course_id=course.id, access=access, refresh=refresh))
+
+
+# * ----------------------------------------- * #
 # ? ----------- Admin Endpoints ----------- ? #
 # * ----------------------------------------- * #
 
@@ -568,6 +645,9 @@ def create_course(request, data: CourseIn):
 
     course = Course.objects.create(
         name=data.name,
+        slug=data.slug or None,
+        is_free=data.is_free,
+        lp_template=data.lp_template or '',
         image=data.image,
         category=data.category,
         sales_page=data.sales_page,
@@ -588,6 +668,8 @@ def update_course(request, course_id: int, data: CourseUpdateIn):
     course = get_object_or_404(Course, id=course_id)
 
     for field, value in data.model_dump(exclude_unset=True).items():
+        if field == 'slug' and not value:
+            value = None  # slug vazio → NULL (unique não aceita vários '')
         setattr(course, field, value)
 
     course.save()

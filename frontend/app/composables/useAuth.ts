@@ -23,13 +23,18 @@ export const useAuth = () => {
 
   const isAuthenticated = computed(() => !!access.value || !!refresh.value)
 
+  // Grava a sessão (cookies). Reusado por login/register e pela LP de curso grátis.
+  const setSession = (tokens: TokenPair) => {
+    access.value = tokens.access
+    refresh.value = tokens.refresh
+  }
+
   const login = async (email: string, password: string, redirect = '/') => {
     const data = await api<TokenPair>('/auth/login', {
       method: 'POST',
       body: { email, password },
     })
-    access.value = data.access
-    refresh.value = data.refresh
+    setSession(data)
     await navigateTo(redirect)
   }
 
@@ -38,8 +43,7 @@ export const useAuth = () => {
       method: 'POST',
       body: { email, password, name },
     })
-    access.value = data.access
-    refresh.value = data.refresh
+    setSession(data)
     await navigateTo(redirect)
   }
 
@@ -49,5 +53,5 @@ export const useAuth = () => {
     await navigateTo('/login')
   }
 
-  return { login, register, logout, isAuthenticated, access, refresh }
+  return { login, register, logout, setSession, isAuthenticated, access, refresh }
 }
