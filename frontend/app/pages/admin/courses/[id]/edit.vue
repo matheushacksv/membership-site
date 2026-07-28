@@ -144,6 +144,7 @@ const loadingModules = ref(true)
 const newModuleName = ref('')
 const creatingModule = ref(false)
 const showModuleInput = ref(false)
+const modulePickerOpen = ref(false)
 
 const loadModules = async () => {
   loadingModules.value = true
@@ -210,6 +211,16 @@ const onModuleReorder = async () => {
   } catch {
     toast.error('Falha ao reordenar')
     await loadModules()
+  }
+}
+
+const onImportModule = async (moduleId: number) => {
+  try {
+    await admin.copyModule(moduleId, courseId)
+    await loadModules()
+    toast.success('Módulo importado (despublicado — revise e publique)')
+  } catch (e: any) {
+    toast.error(e?.data?.detail || 'Falha ao importar módulo')
   }
 }
 
@@ -524,18 +535,34 @@ const savedLabel = computed(() => {
             </button>
           </div>
 
-          <button
-            v-else
-            type="button"
-            class="w-full flex items-center gap-2 px-4 py-3 rounded-lg border border-dashed border-white/10 text-sm text-neutral-500 hover:text-orange-300 hover:border-orange-500/40 transition-colors"
-            @click="showModuleInput = true"
-          >
-            <Plus class="w-4 h-4" />
-            Novo módulo
-          </button>
+          <div v-else class="flex items-center gap-2">
+            <button
+              type="button"
+              class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-white/10 text-sm text-neutral-500 hover:text-orange-300 hover:border-orange-500/40 transition-colors"
+              @click="showModuleInput = true"
+            >
+              <Plus class="w-4 h-4" />
+              Novo módulo
+            </button>
+            <button
+              type="button"
+              class="flex items-center gap-2 px-4 py-3 rounded-lg border border-dashed border-white/10 text-sm text-neutral-500 hover:text-orange-300 hover:border-orange-500/40 transition-colors"
+              @click="modulePickerOpen = true"
+            >
+              <Copy class="w-4 h-4" />
+              Importar módulo
+            </button>
+          </div>
         </template>
       </section>
     </div>
+
+    <AdminModulePickerModal
+      :open="modulePickerOpen"
+      :exclude-course-id="courseId"
+      @close="modulePickerOpen = false"
+      @pick="onImportModule"
+    />
 
     <AdminLessonEditModal
       :open="lessonModalOpen"
