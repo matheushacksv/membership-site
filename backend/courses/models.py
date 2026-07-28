@@ -14,6 +14,9 @@ class Course(models.Model):
         DEVELOPMENT = 'development', 'Desenvolvimento'
 
     name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=160, unique=True, null=True, blank=True, help_text='URL da LP pública (/lp/<slug>). Só usado se is_free')
+    is_free = models.BooleanField(default=False, help_text='Curso gratuito: libera cadastro pela LP pública /lp/<slug>')
+    lp_template = models.CharField(max_length=32, blank=True, default='', help_text="Layout da LP: '' = padrão, 'closer' = pré-qualificação Closer")
     image = models.ImageField(upload_to='thumbs/', blank=True, null=True)
     category = models.CharField(max_length=155, choices=Category.choices)
     sales_page = models.URLField(max_length=155, null=True, blank=True)

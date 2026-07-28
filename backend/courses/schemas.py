@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal, Optional, Self
 
 from ninja import Schema
-from pydantic import Field, model_validator
+from pydantic import EmailStr, Field, model_validator
 
 CategoryLit = Literal['sales', 'marketing', 'strategy', 'tool', 'customer', 'lifestyle', 'development']
 
@@ -172,6 +172,9 @@ class ModuleOut(Schema):
 class CourseDetailOut(Schema):
     id: int
     name: str
+    slug: str | None = None
+    is_free: bool = False
+    lp_template: str = ''
     image: str | None
     category: str
     modules: list[ModuleOut] = []
@@ -184,6 +187,9 @@ class CourseDetailOut(Schema):
 
 class CourseIn(Schema):
     name: str
+    slug: str | None = None
+    is_free: bool = False
+    lp_template: str = ''
     image: str | None = None
     category: CategoryLit
     sales_page: str | None = None
@@ -197,6 +203,9 @@ class CourseIn(Schema):
 class CourseOut(Schema):
     id: int
     name: str
+    slug: str | None = None
+    is_free: bool = False
+    lp_template: str = ''
     image: str | None = None
     category: str
     is_active: bool = False
@@ -213,6 +222,9 @@ class CourseOut(Schema):
 
 class CourseUpdateIn(Schema):
     name: str | None = None
+    slug: str | None = None
+    is_free: bool | None = None
+    lp_template: str | None = None
     image: str | None = None
     category: CategoryLit | None = None
     sales_page: str | None = None
@@ -221,6 +233,31 @@ class CourseUpdateIn(Schema):
     kiwify_product_id: str | None = None
     access_days: int | None = None
     quiz_webhook_url: str | None = None
+
+
+# --- LP de curso gratuito (endpoints públicos /catalog/free/*) ---
+class FreeCourseLPOut(Schema):
+    id: int
+    name: str
+    lp_template: str = ''
+    image: str | None = None
+
+    @staticmethod
+    def resolve_image(obj) -> str | None:
+        return obj.image.url if obj.image else None
+
+
+class FreeSignupIn(Schema):
+    name: str
+    email: EmailStr
+    phone: str = ''
+
+
+class FreeSignupOut(Schema):
+    created: bool
+    course_id: int
+    access: str | None = None
+    refresh: str | None = None
 
 
 class BannerOut(Schema):

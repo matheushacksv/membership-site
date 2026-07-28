@@ -4,6 +4,9 @@ export interface AdminCourse extends CourseListItem {
   created_at?: string
   updated_at?: string
   quiz_webhook_url?: string
+  slug?: string | null
+  is_free?: boolean
+  lp_template?: string
 }
 
 export interface CourseInput {
@@ -16,6 +19,9 @@ export interface CourseInput {
   kiwify_product_id?: string
   access_days?: number | null
   quiz_webhook_url?: string
+  slug?: string | null
+  is_free?: boolean
+  lp_template?: string
 }
 
 export interface ModuleItem {

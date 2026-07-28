@@ -9,6 +9,7 @@ import {
   Copy,
   Webhook,
   ClipboardList,
+  Gift,
 } from 'lucide-vue-next'
 import type { CourseInput, ModuleItem } from '~/composables/useAdmin'
 
@@ -44,6 +45,9 @@ const form = reactive<CourseInput>({
   kiwify_product_id: course.value?.kiwify_product_id || '',
   access_days: course.value?.access_days ?? null,
   quiz_webhook_url: course.value?.quiz_webhook_url || '',
+  is_free: course.value?.is_free ?? false,
+  slug: course.value?.slug || '',
+  lp_template: course.value?.lp_template || '',
 })
 
 const config = useRuntimeConfig()
@@ -64,6 +68,28 @@ const copyWebhook = async () => {
     await navigator.clipboard.writeText(webhookUrl.value)
     copied.value = true
     setTimeout(() => (copied.value = false), 1500)
+  } catch {
+    toast.error('Falha ao copiar')
+  }
+}
+
+// LP de curso gratuito: slug vira /lp/<slug> no MESMO domínio do front (cursos.*).
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+const origin = ref('')
+onMounted(() => (origin.value = window.location.origin))
+const lpUrl = computed(() => (form.slug ? `${origin.value}/lp/${slugify(form.slug)}` : ''))
+const copiedLp = ref(false)
+const copyLp = async () => {
+  try {
+    await navigator.clipboard.writeText(lpUrl.value)
+    copiedLp.value = true
+    setTimeout(() => (copiedLp.value = false), 1500)
   } catch {
     toast.error('Falha ao copiar')
   }
@@ -95,6 +121,9 @@ const persistCourse = async () => {
       kiwify_product_id: form.kiwify_product_id || '',
       access_days: form.access_days ?? null,
       quiz_webhook_url: form.quiz_webhook_url || '',
+      is_free: form.is_free,
+      slug: form.slug ? slugify(form.slug) : null,
+      lp_template: form.lp_template || '',
     })
     savedAt.value = new Date()
   } catch (e: any) {
@@ -305,6 +334,63 @@ const savedLabel = computed(() => {
           <input v-model="form.is_active" type="checkbox" class="accent-orange-500">
           Curso publicado
         </label>
+
+        <div class="pt-4 mt-2 border-t border-white/5 space-y-4">
+          <div class="flex items-center gap-2">
+            <Gift class="w-3.5 h-3.5 text-emerald-400" />
+            <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-300">Curso gratuito (LP)</h3>
+          </div>
+
+          <label class="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer">
+            <input v-model="form.is_free" type="checkbox" class="accent-orange-500">
+            Liberar cadastro por LP pública
+          </label>
+
+          <template v-if="form.is_free">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Slug da URL</label>
+              <input
+                v-model="form.slug"
+                type="text"
+                placeholder="curso-gratis"
+                class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none font-mono"
+              >
+              <p class="text-[11px] text-neutral-500 mt-1">Só letras, números e hífen — gera a URL pública abaixo.</p>
+            </div>
+
+            <div v-if="lpUrl">
+              <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">URL da LP</label>
+              <div class="flex items-stretch gap-2">
+                <code class="flex-1 px-3 py-2 bg-black/40 border border-white/10 rounded-lg text-[11px] text-neutral-300 font-mono truncate">
+                  {{ lpUrl }}
+                </code>
+                <button
+                  type="button"
+                  class="px-2.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300"
+                  :aria-label="copiedLp ? 'Copiado' : 'Copiar'"
+                  @click="copyLp"
+                >
+                  <Check v-if="copiedLp" class="w-3.5 h-3.5 text-emerald-400" />
+                  <Copy v-else class="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p class="text-[11px] text-neutral-500 mt-1">Compartilhe. Quem se cadastrar ganha acesso a este curso.</p>
+            </div>
+            <p v-else class="text-[11px] text-amber-400">Defina um slug pra gerar a URL da LP.</p>
+
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Template da LP</label>
+              <select
+                v-model="form.lp_template"
+                class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
+              >
+                <option value="" class="bg-black">Padrão (form simples)</option>
+                <option value="closer" class="bg-black">Pré-qualificação SDR e Closer</option>
+              </select>
+              <p class="text-[11px] text-neutral-500 mt-1">Escolhe o layout da página pública.</p>
+            </div>
+          </template>
+        </div>
 
         <div class="pt-4 mt-2 border-t border-white/5 space-y-4">
           <div class="flex items-center gap-2">

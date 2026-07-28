@@ -11,6 +11,8 @@ from .api import (
     QUIZ_TIMEOUT_GRACE,
     _quiz_result,
     attachment_library,
+    free_course_lp,
+    free_course_signup,
     get_lesson_quiz,
     link_attachment,
     start_lesson_quiz,
@@ -18,7 +20,7 @@ from .api import (
 )
 from .helpers import _module_locked
 from .models import Course, Lesson, LessonAttachment, Module, QuizAttempt
-from .schemas import LinkAttachmentIn, QuizSubmitIn
+from .schemas import FreeSignupIn, LinkAttachmentIn, QuizSubmitIn
 from .tasks import _quiz_webhook_payload, finalize_quiz_timeout
 
 
@@ -285,3 +287,61 @@ class QuizTimeoutTaskTests(TestCase):
         att.refresh_from_db()
         self.assertFalse(att.timed_out)  # agenda obsoleta → no-op
         self.assertEqual(att.attempts, 0)
+
+
+class FreeCourseSignupTests(TestCase):
+    """LP pública: cadastro só libera curso is_free. Conta nova auto-loga; existente não."""
+
+    def setUp(self):
+        self.request = SimpleNamespace(auth=None)  # endpoint é auth=None, não usa request
+        self.course = Course.objects.create(
+            name='Curso Grátis', category=Course.Category.SALES, slug='curso-gratis', is_free=True
+        )
+
+    def _signup(self, slug, **kw):
+        return free_course_signup(self.request, slug, FreeSignupIn(**kw))
+
+    def test_novo_matricula_source_lp_e_loga(self):
+        res = self._signup('curso-gratis', name='João', email='J@Example.com', phone='11999998888')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.value.created)
+        self.assertTrue(res.value.access and res.value.refresh)  # auto-login conta nova
+        self.assertEqual(res.value.course_id, self.course.id)
+
+        user = get_user_model().objects.get(email='j@example.com')  # normalizado
+        self.assertEqual(user.phone, '11999998888')
+        enr = CourseEnrollment.objects.get(user=user, course=self.course)
+        self.assertEqual(enr.source, 'lp')
+        self.assertTrue(enr.is_active)
+
+    def test_existente_nao_loga_e_matricula_uma_vez(self):
+        get_user_model().objects.create_user(email='ana@example.com', password='x' * 12, name='Ana')
+
+        res = self._signup('curso-gratis', name='Ana', email='ana@example.com')
+        self.assertTrue(res.status_code == 200 and res.value.created is False)
+        self.assertIsNone(res.value.access)  # existente NUNCA auto-loga (anti-takeover)
+        self.assertIsNone(res.value.refresh)
+
+        self._signup('curso-gratis', name='Ana', email='ana@example.com')  # idempotente
+        self.assertEqual(CourseEnrollment.objects.filter(course=self.course).count(), 1)
+
+    def test_curso_nao_free_404(self):
+        Course.objects.create(name='Pago', category=Course.Category.SALES, slug='pago', is_free=False)
+        res = self._signup('pago', name='X', email='x@example.com')
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(CourseEnrollment.objects.count(), 0)
+
+    def test_lp_get_so_expõe_free(self):
+        Course.objects.create(name='Pago', category=Course.Category.SALES, slug='pago', is_free=False)
+        self.assertEqual(free_course_lp(self.request, 'curso-gratis').status_code, 200)
+        self.assertEqual(free_course_lp(self.request, 'pago').status_code, 404)
+
+    def test_register_normal_nao_matricula(self):
+        from accounts.api import signup as account_signup
+        from accounts.schemas import UserSignup
+
+        account_signup(
+            self.request,
+            UserSignup(name='Zé', email='ze@example.com', password='senha12345', repeat_password='senha12345'),
+        )
+        self.assertEqual(CourseEnrollment.objects.count(), 0)  # /register nunca dá curso
