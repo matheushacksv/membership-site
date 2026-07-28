@@ -55,6 +55,7 @@ export interface CourseInput {
   slug?: string | null
   is_free?: boolean
   lp_template?: string
+  comments_enabled?: boolean
 }
 
 export interface ModuleItem {

@@ -261,7 +261,10 @@ onMounted(checkForm)
         :next="nextLesson"
       />
 
-      <CourseCommentsSection :lesson-id="currentLesson.id" />
+      <CourseCommentsSection
+        v-if="course.comments_enabled && currentLesson.kind !== 'quiz'"
+        :lesson-id="currentLesson.id"
+      />
     </div>
 
     <CourseFormModal

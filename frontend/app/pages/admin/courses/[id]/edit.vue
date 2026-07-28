@@ -48,6 +48,7 @@ const form = reactive<CourseInput>({
   is_free: course.value?.is_free ?? false,
   slug: course.value?.slug || '',
   lp_template: course.value?.lp_template || '',
+  comments_enabled: course.value?.comments_enabled ?? true,
 })
 
 const config = useRuntimeConfig()
@@ -124,6 +125,7 @@ const persistCourse = async () => {
       is_free: form.is_free,
       slug: form.slug ? slugify(form.slug) : null,
       lp_template: form.lp_template || '',
+      comments_enabled: form.comments_enabled,
     })
     savedAt.value = new Date()
   } catch (e: any) {
@@ -344,6 +346,11 @@ const savedLabel = computed(() => {
         <label class="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer">
           <input v-model="form.is_active" type="checkbox" class="accent-orange-500">
           Curso publicado
+        </label>
+
+        <label class="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer">
+          <input v-model="form.comments_enabled" type="checkbox" class="accent-orange-500">
+          Comentários habilitados
         </label>
 
         <div class="pt-4 mt-2 border-t border-white/5 space-y-4">

@@ -200,6 +200,7 @@ class CourseDetailOut(Schema):
     checkout_link: str | None
     kiwify_product_id: str = ''
     access_days: int | None = None
+    comments_enabled: bool = True
 
 
 class CourseIn(Schema):
@@ -215,6 +216,7 @@ class CourseIn(Schema):
     kiwify_product_id: str = ''
     access_days: int | None = None
     quiz_webhook_url: str = ''
+    comments_enabled: bool = True
 
 
 class CourseOut(Schema):
@@ -231,6 +233,7 @@ class CourseOut(Schema):
     kiwify_product_id: str = ''
     access_days: int | None = None
     quiz_webhook_url: str = ''
+    comments_enabled: bool = True
 
     @staticmethod
     def resolve_image(obj) -> str | None:
@@ -250,6 +253,7 @@ class CourseUpdateIn(Schema):
     kiwify_product_id: str | None = None
     access_days: int | None = None
     quiz_webhook_url: str | None = None
+    comments_enabled: bool | None = None
 
 
 # --- LP de curso gratuito (endpoints públicos /catalog/free/*) ---

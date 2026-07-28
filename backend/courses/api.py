@@ -246,9 +246,13 @@ def list_comments(request, lesson_id: int):
 
 @catalog_router.post('/lessons/{lesson_id}/comments', response={201: CommentOut, 400: Error, 403: Error, 404: Error})
 def create_comment(request, lesson_id: int, data: CommentIn):
-    lesson = get_object_or_404(Lesson.objects.select_related('module'), id=lesson_id)
+    lesson = get_object_or_404(Lesson.objects.select_related('module__course'), id=lesson_id)
     if denied := _assert_enrolled_or_403(request, lesson):
         return denied
+    if lesson.kind == Lesson.Kind.QUIZ:
+        return Status(403, Error(detail='Comentários desativados em exercícios'))
+    if not lesson.module.course.comments_enabled and not request.auth.is_staff:
+        return Status(403, Error(detail='Comentários desativados neste curso'))
 
     parent = None
     if data.parent_id:
@@ -661,6 +665,7 @@ def create_course(request, data: CourseIn):
         kiwify_product_id=data.kiwify_product_id,
         access_days=data.access_days,
         quiz_webhook_url=data.quiz_webhook_url,
+        comments_enabled=data.comments_enabled,
     )
 
     return Status(201, course)
