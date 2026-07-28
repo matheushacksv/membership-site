@@ -1,4 +1,5 @@
 import json
+import urllib.error
 import urllib.request
 from datetime import datetime
 
@@ -108,3 +109,39 @@ def fire_quiz_webhook(url: str, payload: dict, secret: str = '') -> None:
     req = urllib.request.Request(url, data=body, headers=headers, method='POST')
     urllib.request.urlopen(req, timeout=10)  # noqa: S310 (URL é config staff)
     # Check do builder: courses.tests.QuizWebhookPayloadTests (roda com o Django configurado).
+
+
+def _sample_quiz_payload() -> dict:
+    """Payload fictício com o MESMO formato de _quiz_webhook_payload, p/ o botão de teste.
+    ponytail: dict estático — manter em sincronia manual com _quiz_webhook_payload se o
+    shape mudar. Check em courses.tests garante que não diverge nas chaves de topo."""
+    return {
+        'event': 'quiz_completed',
+        'test': True,
+        'course_id': 0,
+        'course_name': 'Curso de Teste',
+        'lesson_id': 0,
+        'lesson_name': 'Exercício de Teste',
+        'user': {'id': 0, 'name': 'Aluno Teste', 'email': 'teste@exemplo.com'},
+        'score': 2,
+        'total': 3,
+        'timed_out': False,
+        'attempt': 1,
+        'submitted_at': timezone.now().isoformat(),
+        'answers': [
+            {'key': 'q1', 'prompt': 'Pergunta 1', 'type': 'choice', 'chosen': 0, 'correct': 0, 'is_correct': True},
+            {'key': 'q2', 'prompt': 'Pergunta 2', 'type': 'text', 'answer_text': 'resposta livre'},
+        ],
+    }
+
+
+def check_quiz_webhook(url: str) -> dict:
+    """Dispara o payload de teste sincronamente e reporta. Reusa fire_quiz_webhook.
+    ponytail: síncrono (bloqueia o worker até timeout=10s) — é um clique manual, ok."""
+    try:
+        fire_quiz_webhook(url, _sample_quiz_payload(), settings.QUIZ_WEBHOOK_SECRET)
+    except urllib.error.HTTPError as e:
+        return {'ok': False, 'status': e.code, 'detail': f'Servidor respondeu HTTP {e.code}'}
+    except Exception as e:
+        return {'ok': False, 'status': 0, 'detail': f'Não alcançável: {type(e).__name__}'}
+    return {'ok': True, 'status': 200, 'detail': 'Webhook enviado com sucesso'}
