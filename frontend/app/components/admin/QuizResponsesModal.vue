@@ -49,12 +49,14 @@ watch(
 const csvCell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
 
 const exportCsv = () => {
-  const header = ['Aluno', 'Email', 'Nota', 'Total', 'Data', ...textQuestions.value.map((q) => q.prompt)]
+  const header = ['Aluno', 'Email', 'Nota', 'Total', 'Tentativas', 'Timeout', 'Data', ...textQuestions.value.map((q) => q.prompt)]
   const lines = rows.value.map((r) => [
     r.user_name || '',
     r.user_email,
     r.score,
     r.total,
+    r.attempts,
+    r.timed_out ? 'sim' : 'não',
     new Date(r.updated_at).toLocaleString('pt-BR'),
     ...textQuestions.value.map((q) => r.answers[q.key ?? ''] ?? ''),
   ])
@@ -99,6 +101,14 @@ const exportCsv = () => {
               <span class="flex-1 min-w-0">
                 <span class="block text-white truncate">{{ r.user_name || r.user_email }}</span>
                 <span v-if="r.user_name" class="block text-[11px] text-neutral-500 truncate">{{ r.user_email }}</span>
+              </span>
+              <span
+                v-if="r.timed_out"
+                class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-red-300 bg-red-500/10 border border-red-500/30"
+                title="Tentativa finalizada por tempo esgotado"
+              >Timeout</span>
+              <span v-if="r.attempts > 1" class="shrink-0 text-[10px] text-neutral-500" :title="`${r.attempts} tentativas`">
+                ×{{ r.attempts }}
               </span>
               <span class="text-white font-medium shrink-0">
                 {{ r.score }}<span class="text-neutral-500">/{{ r.total }}</span>

@@ -26,6 +26,7 @@ const form = reactive({
   video_id: '',
   content: '',
   allow_retake: true,
+  time_limit_min: 0, // exercício: tempo em minutos (0 = sem tempo); vira segundos no save
   is_published: true,
 })
 
@@ -51,6 +52,7 @@ watch(
       form.video_id = l.video_id || ''
       form.content = l.content || ''
       form.allow_retake = l.allow_retake ?? true
+      form.time_limit_min = Math.round((l.time_limit_seconds || 0) / 60)
       form.is_published = l.is_published
       questions.value = form.kind === 'quiz' ? await admin.getLessonQuiz(id) : []
       await loadAttachments(id)
@@ -152,6 +154,7 @@ const save = async () => {
       video_id: form.video_id || null,
       content: form.content || null,
       allow_retake: form.allow_retake,
+      time_limit_seconds: Math.max(0, Math.round(form.time_limit_min || 0)) * 60,
       is_published: form.is_published,
     })
     // Perguntas vão num PUT separado; o backend valida (≥2 opções, gabarito no range)
@@ -263,6 +266,16 @@ const save = async () => {
         <label class="flex items-center gap-2 text-sm text-neutral-400">
           <input v-model="form.allow_retake" type="checkbox" class="accent-orange-500">
           Permitir refazer <span class="text-neutral-600">(desligado = 1 tentativa)</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm text-neutral-400">
+          <span>Tempo limite</span>
+          <input
+            v-model.number="form.time_limit_min"
+            type="number"
+            min="0"
+            class="w-20 px-2 py-1 bg-white/5 border border-white/10 rounded-md text-sm text-white focus:border-orange-500/50 focus:outline-none"
+          >
+          <span class="text-neutral-600">min (0 = sem tempo; ao esgotar vira tentativa falha)</span>
         </label>
         <AdminQuizEditor v-model="questions" />
       </div>

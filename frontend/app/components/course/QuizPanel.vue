@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Loader2, CheckCircle2, XCircle, RotateCcw, AlertCircle } from 'lucide-vue-next'
+import { Loader2, CheckCircle2, XCircle, RotateCcw, AlertCircle, Timer, Play } from 'lucide-vue-next'
 import type { QuizQuestion, QuizResult } from '~/composables/useCourse'
 
 const props = defineProps<{ lessonId: number }>()
@@ -15,15 +15,61 @@ const selected = ref<Record<string, number | string>>({})
 const result = ref<QuizResult | null>(null)
 const allowRetake = ref(true)
 
+// Timer (exercício cronometrado). time_limit=0 → sem tempo, comporta como antes.
+const timeLimit = ref(0)
+const remaining = ref<number | null>(null) // segundos restantes; null = não iniciado
+const attempts = ref(0)
+const lastTimedOut = ref(false)
+let ticker: ReturnType<typeof setInterval> | null = null
+let serverOffset = 0 // (server_now - Date.now()) → contagem imune a relógio torto do cliente
+let expiresAt = 0
+let finishing = false // evita submit duplo (tick + clique)
+
+const timed = computed(() => timeLimit.value > 0)
+// Formulário aparece: sem tempo → sempre; com tempo → só depois de iniciar.
+const showForm = computed(() => !result.value && (!timed.value || remaining.value !== null))
+const showGate = computed(() => !result.value && timed.value && remaining.value === null)
+
+const mmss = computed(() => {
+  const s = Math.max(0, remaining.value ?? 0)
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+})
+
+const stopTicker = () => {
+  if (ticker) { clearInterval(ticker); ticker = null }
+}
+
+const runCountdown = (server_now: string, expires_at: string) => {
+  serverOffset = new Date(server_now).getTime() - Date.now()
+  expiresAt = new Date(expires_at).getTime()
+  stopTicker()
+  const tick = () => {
+    remaining.value = Math.max(0, Math.ceil((expiresAt - (Date.now() + serverOffset)) / 1000))
+    if (remaining.value <= 0) onExpire()
+  }
+  tick()
+  ticker = setInterval(tick, 1000)
+}
+
 const load = async () => {
   loading.value = true
+  stopTicker()
+  finishing = false
   selected.value = {}
   result.value = null
+  remaining.value = null
   try {
     const state = await courseApi.getQuiz(props.lessonId)
     questions.value = state.questions
-    result.value = state.attempt // já respondeu antes → mostra o resultado direto
     allowRetake.value = state.allow_retake
+    timeLimit.value = state.time_limit_seconds || 0
+    attempts.value = state.attempts || 0
+    lastTimedOut.value = state.timed_out || false
+    result.value = state.attempt // já finalizou antes → mostra o resultado direto
+    // Reload no meio de uma tentativa cronometrada → retoma o tempo restante (não zera).
+    if (!result.value && state.timer) {
+      runCountdown(state.timer.server_now, state.timer.expires_at)
+    }
   } catch (e: any) {
     toast.error(e?.data?.detail || 'Falha ao carregar exercício')
     questions.value = []
@@ -33,6 +79,18 @@ const load = async () => {
 }
 
 watch(() => props.lessonId, load, { immediate: true })
+onBeforeUnmount(stopTicker)
+
+// Inicia (ou recomeça) a tentativa cronometrada: servidor grava o início e devolve o timer.
+const begin = async () => {
+  lastTimedOut.value = false
+  try {
+    const timer = await courseApi.startQuiz(props.lessonId)
+    runCountdown(timer.server_now, timer.expires_at)
+  } catch (e: any) {
+    toast.error(e?.data?.detail || 'Falha ao iniciar exercício')
+  }
+}
 
 // Escolha: respondida quando tem índice; dissertativa: quando o texto não está vazio.
 const isAnswered = (q: QuizQuestion) => {
@@ -41,14 +99,15 @@ const isAnswered = (q: QuizQuestion) => {
 }
 const allAnswered = computed(() => questions.value.length > 0 && questions.value.every(isAnswered))
 
-// Índice correto/escolhido (ou texto) por pergunta, pra montar a tela de resultado.
 const resultByKey = computed(() =>
   Object.fromEntries((result.value?.results || []).map((r) => [r.key, r]))
 )
 
 const submit = async () => {
-  if (!allAnswered.value) return
+  if (!allAnswered.value || submitting.value || finishing) return
+  finishing = true
   submitting.value = true
+  stopTicker()
   try {
     result.value = await courseApi.submitQuiz(props.lessonId, selected.value)
     emit('completed')
@@ -56,12 +115,30 @@ const submit = async () => {
     toast.error(e?.data?.detail || 'Falha ao enviar respostas')
   } finally {
     submitting.value = false
+    finishing = false
   }
+}
+
+// Tempo esgotou: finaliza como falha no servidor e VOLTA AO INÍCIO (campos limpos).
+const onExpire = async () => {
+  if (finishing) return
+  finishing = true
+  stopTicker()
+  remaining.value = null
+  try {
+    await courseApi.submitQuiz(props.lessonId, selected.value, true)
+    emit('completed') // timeout ainda conclui a aula
+  } catch { /* silent — servidor já registra a falha via task */ }
+  selected.value = {}
+  attempts.value += 1
+  lastTimedOut.value = true
+  finishing = false
 }
 
 const retake = () => {
   selected.value = {}
   result.value = null
+  remaining.value = null // exercício cronometrado volta pro gate "Iniciar"
 }
 </script>
 
@@ -74,6 +151,34 @@ const retake = () => {
     <div v-else-if="!questions.length" class="flex items-center gap-2 text-sm text-neutral-400 py-6">
       <AlertCircle class="w-4 h-4 text-neutral-500" />
       Este exercício ainda não tem perguntas.
+    </div>
+
+    <!-- Gate: exercício cronometrado antes de iniciar -->
+    <div v-else-if="showGate" class="space-y-4 py-4 text-center">
+      <div
+        v-if="lastTimedOut"
+        class="flex items-center justify-center gap-2 text-sm text-red-300"
+      >
+        <XCircle class="w-4 h-4" />
+        Tempo esgotado — tentativa falha {{ attempts }}.
+      </div>
+      <div class="flex items-center justify-center gap-2 text-neutral-300">
+        <Timer class="w-5 h-5 text-orange-400" />
+        <span class="text-sm">
+          Você terá <strong class="text-white">{{ Math.round(timeLimit / 60) || 1 }} min</strong>.
+          Ao esgotar, o teste finaliza sozinho como tentativa falha.
+        </span>
+      </div>
+      <button
+        v-if="allowRetake || attempts === 0"
+        type="button"
+        class="inline-flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-400 text-white font-bold uppercase tracking-wider text-xs rounded-lg"
+        @click="begin"
+      >
+        <Play class="w-3.5 h-3.5" />
+        {{ attempts > 0 ? 'Tentar de novo' : 'Iniciar exercício' }}
+      </button>
+      <p v-else class="text-xs text-neutral-500">Sem novas tentativas disponíveis.</p>
     </div>
 
     <!-- Resultado -->
@@ -143,7 +248,23 @@ const retake = () => {
     </div>
 
     <!-- Responder -->
-    <form v-else class="space-y-5" @submit.prevent="submit">
+    <form v-else-if="showForm" class="space-y-5" @submit.prevent="submit">
+      <!-- Contagem regressiva -->
+      <div
+        v-if="timed"
+        class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border"
+        :class="(remaining ?? 0) <= 10 ? 'border-red-500/40 bg-red-500/10' : 'border-white/10 bg-white/[0.02]'"
+      >
+        <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-neutral-400">
+          <Timer class="w-3.5 h-3.5" />
+          Tempo restante
+        </span>
+        <span
+          class="text-lg font-bold tabular-nums"
+          :class="(remaining ?? 0) <= 10 ? 'text-red-300' : 'text-white'"
+        >{{ mmss }}</span>
+      </div>
+
       <div
         v-for="(q, qi) in questions"
         :key="q.key"

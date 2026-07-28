@@ -45,6 +45,7 @@ export interface LessonItem {
   video_id?: string | null
   content?: string | null
   allow_retake?: boolean
+  time_limit_seconds?: number
   order: number
   is_published: boolean
 }
@@ -58,6 +59,7 @@ export interface LessonInput {
   video_id?: string | null
   content?: string | null
   allow_retake?: boolean
+  time_limit_seconds?: number
   order?: number
   is_published?: boolean
 }
@@ -135,6 +137,8 @@ export interface QuizResponseRow {
   user_email: string
   score: number
   total: number
+  attempts: number
+  timed_out: boolean
   answers: Record<string, number | string>
   updated_at: string
 }

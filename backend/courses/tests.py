@@ -1,16 +1,25 @@
+from datetime import timedelta
 from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from enrollments.models import LessonProgress
+from enrollments.models import CourseEnrollment, LessonProgress
 
-from .api import _quiz_result, attachment_library, link_attachment
+from .api import (
+    QUIZ_TIMEOUT_GRACE,
+    _quiz_result,
+    attachment_library,
+    get_lesson_quiz,
+    link_attachment,
+    start_lesson_quiz,
+    submit_lesson_quiz,
+)
 from .helpers import _module_locked
-from .models import Course, Lesson, LessonAttachment, Module
-from .schemas import LinkAttachmentIn
-from .tasks import _quiz_webhook_payload
+from .models import Course, Lesson, LessonAttachment, Module, QuizAttempt
+from .schemas import LinkAttachmentIn, QuizSubmitIn
+from .tasks import _quiz_webhook_payload, finalize_quiz_timeout
 
 
 class LinkAttachmentTests(TestCase):
@@ -146,7 +155,133 @@ class QuizWebhookPayloadTests(TestCase):
         self.assertEqual(payload['event'], 'quiz_completed')
         self.assertEqual((payload['score'], payload['total']), (1, 1))
         self.assertEqual(payload['user']['email'], 'b@b.com')
+        self.assertEqual((payload['timed_out'], payload['attempt']), (False, 0))
         by_key = {a['key']: a for a in payload['answers']}
         self.assertTrue(by_key['q0']['is_correct'])
         self.assertEqual(by_key['q0']['prompt'], '2+2?')
         self.assertEqual(by_key['q1']['answer_text'], 'porque sim')
+
+    def test_payload_timeout(self):
+        course = Course.objects.create(name='C', category=Course.Category.SALES)
+        module = Module.objects.create(course=course, name='M', order=0)
+        lesson = Lesson.objects.create(
+            module=module, name='P', kind=Lesson.Kind.QUIZ, order=0,
+            questions=[{'key': 'q0', 'prompt': 'a', 'type': 'choice', 'options': ['x', 'y'], 'correct': 0, 'explanation': ''}],
+        )
+        user = get_user_model().objects.create_user(email='c@c.com', password='x', name='C')
+        result = _quiz_result(lesson.questions, {})
+
+        payload = _quiz_webhook_payload(lesson, user, result, {}, timed_out=True, attempt=1)
+        self.assertEqual(payload['event'], 'quiz_timed_out')
+        self.assertTrue(payload['timed_out'])
+        self.assertEqual(payload['attempt'], 1)
+
+
+class QuizTimerTests(TestCase):
+    """Timer do exercício: submit no prazo é nota normal; estourado vira falha (score 0)."""
+
+    questions = [{'key': 'q0', 'prompt': 'a', 'type': 'choice', 'options': ['x', 'y'], 'correct': 0, 'explanation': ''}]
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(email='a@a.com', password='x', name='A')
+        self.course = Course.objects.create(name='C', category=Course.Category.SALES)
+        self.module = Module.objects.create(course=self.course, name='M', order=0, is_published=True)
+        self.lesson = Lesson.objects.create(
+            module=self.module, name='Prova', kind=Lesson.Kind.QUIZ, order=0,
+            is_published=True, time_limit_seconds=60, questions=self.questions,
+        )
+        CourseEnrollment.objects.create(user=self.user, course=self.course, is_active=True)
+        self.request = SimpleNamespace(auth=self.user)
+
+    def _attempt(self, **kw):
+        return QuizAttempt.objects.create(lesson=self.lesson, user=self.user, **kw)
+
+    def test_submit_no_prazo_nota_normal(self):
+        self._attempt(started_at=timezone.now())
+        res = submit_lesson_quiz(self.request, self.lesson.id, QuizSubmitIn(answers={'q0': 0}))
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual((res.value.score, res.value.total), (1, 1))
+        att = QuizAttempt.objects.get(lesson=self.lesson, user=self.user)
+        self.assertFalse(att.timed_out)
+        self.assertEqual(att.attempts, 1)
+        self.assertIsNotNone(att.submitted_at)
+        self.assertTrue(LessonProgress.objects.filter(user=self.user, lesson=self.lesson, completed_at__isnull=False).exists())
+
+    def test_submit_apos_o_tempo_vira_falha(self):
+        # tentativa aberta e já vencida (mesmo mandando gabarito certo)
+        self._attempt(started_at=timezone.now() - timedelta(seconds=60 + QUIZ_TIMEOUT_GRACE + 5))
+        res = submit_lesson_quiz(self.request, self.lesson.id, QuizSubmitIn(answers={'q0': 0}))
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.value.score, 0)  # acerto ignorado: falha por timeout
+        att = QuizAttempt.objects.get(lesson=self.lesson, user=self.user)
+        self.assertTrue(att.timed_out)
+        self.assertEqual(att.attempts, 1)
+        self.assertTrue(LessonProgress.objects.filter(user=self.user, lesson=self.lesson, completed_at__isnull=False).exists())
+
+    def test_client_sinaliza_timeout_no_zero(self):
+        # auto-submit do front no zero (ainda dentro do GRACE server-side) → falha, não normal
+        self._attempt(started_at=timezone.now())
+        res = submit_lesson_quiz(self.request, self.lesson.id, QuizSubmitIn(answers={'q0': 0}, timed_out=True))
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.value.score, 0)
+        att = QuizAttempt.objects.get(lesson=self.lesson, user=self.user)
+        self.assertTrue(att.timed_out)
+        self.assertEqual(att.attempts, 1)
+
+    def test_get_detecta_timeout_preguicoso(self):
+        self._attempt(started_at=timezone.now() - timedelta(seconds=60 + QUIZ_TIMEOUT_GRACE + 5))
+        res = get_lesson_quiz(self.request, self.lesson.id)
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.value['timed_out'])
+        self.assertIsNotNone(res.value['attempt'])  # já finalizada
+        self.assertEqual(QuizAttempt.objects.get(lesson=self.lesson, user=self.user).attempts, 1)
+
+    def test_start_idempotente_nao_estende(self):
+        first = start_lesson_quiz(self.request, self.lesson.id)
+        started = QuizAttempt.objects.get(lesson=self.lesson, user=self.user).started_at
+        second = start_lesson_quiz(self.request, self.lesson.id)
+
+        self.assertEqual(first.value.started_at, second.value.started_at)
+        self.assertEqual(QuizAttempt.objects.get(lesson=self.lesson, user=self.user).started_at, started)
+
+
+class QuizTimeoutTaskTests(TestCase):
+    """finalize_quiz_timeout (django-q ONCE): fecha falha 1x mesmo sem o aluno voltar."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(email='a@a.com', password='x', name='A')
+        self.course = Course.objects.create(name='C', category=Course.Category.SALES)
+        self.module = Module.objects.create(course=self.course, name='M', order=0, is_published=True)
+        self.lesson = Lesson.objects.create(
+            module=self.module, name='Prova', kind=Lesson.Kind.QUIZ, order=0,
+            is_published=True, time_limit_seconds=60,
+            questions=[{'key': 'q0', 'prompt': 'a', 'type': 'choice', 'options': ['x', 'y'], 'correct': 0, 'explanation': ''}],
+        )
+
+    def test_task_fecha_falha_e_e_idempotente(self):
+        started = timezone.now() - timedelta(seconds=120)
+        att = QuizAttempt.objects.create(lesson=self.lesson, user=self.user, started_at=started)
+
+        finalize_quiz_timeout(self.lesson.id, self.user.id, started.isoformat())
+        att.refresh_from_db()
+        self.assertTrue(att.timed_out)
+        self.assertEqual(att.attempts, 1)
+        self.assertEqual(att.score, 0)
+        self.assertIsNotNone(att.submitted_at)
+
+        # rodar de novo não conta outra falha (guarda por submitted_at)
+        finalize_quiz_timeout(self.lesson.id, self.user.id, started.isoformat())
+        att.refresh_from_db()
+        self.assertEqual(att.attempts, 1)
+
+    def test_task_no_op_se_started_at_mudou(self):
+        att = QuizAttempt.objects.create(lesson=self.lesson, user=self.user, started_at=timezone.now())
+
+        finalize_quiz_timeout(self.lesson.id, self.user.id, (timezone.now() - timedelta(hours=1)).isoformat())
+        att.refresh_from_db()
+        self.assertFalse(att.timed_out)  # agenda obsoleta → no-op
+        self.assertEqual(att.attempts, 0)
