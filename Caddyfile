@@ -38,3 +38,21 @@ desafio.henriquegoularte.com.br {
         file_server
     }
 }
+
+grupoenriquecedor.com.br, www.grupoenriquecedor.com.br {
+    # Entrega o hostname inteiro para a stack das landing pages, que roda em
+    # /opt/lps com o Caddy dela. Este bloco não sabe quais LPs existem nem onde
+    # ficam os arquivos delas, e por isso nunca mais precisa mudar: LP nova é
+    # um handle_path no Caddyfile do outro projeto, não uma linha aqui.
+    #
+    # Sem bind mount e sem mexer no docker-compose.yml daqui de propósito. Foi
+    # o acoplamento que o /desafio criou (mount de /opt/lp-desafio/www mais os
+    # caminhos dele acima) que tornou cada deploy uma cirurgia.
+    #
+    # Se a stack das LPs cair, este bloco devolve 502 só neste hostname.
+    # cursos. e desafio. estão em outro processo e não tomam conhecimento.
+    #
+    # Sem `encode`: o Caddy das LPs já comprime, e comprimir de novo aqui só
+    # gastaria CPU.
+    reverse_proxy lps-caddy:80
+}
