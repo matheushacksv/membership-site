@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { BookOpen, Home, Image as ImageIcon, LogOut, MessageSquare, Plug, Users } from 'lucide-vue-next'
+import { BookOpen, Home, Image as ImageIcon, LifeBuoy, LogOut, MessageSquare, Plug, Users } from 'lucide-vue-next'
 
 const route = useRoute()
 const { logout } = useAuth()
@@ -11,21 +11,26 @@ const items = [
   { to: '/admin/courses', label: 'Cursos', icon: BookOpen, match: '/admin/courses' },
   { to: '/admin/users', label: 'Alunos', icon: Users, match: '/admin/users' },
   { to: '/admin/comments', label: 'Comentários', icon: MessageSquare, match: '/admin/comments' },
+  { to: '/admin/tickets', label: 'Suporte', icon: LifeBuoy, match: '/admin/tickets' },
   { to: '/admin/banners', label: 'Banners', icon: ImageIcon, match: '/admin/banners' },
   { to: '/admin/integracoes', label: 'Integrações', icon: Plug, match: '/admin/integracoes' },
 ]
 
-// Badge = comentários pendentes de moderação. Recarrega ao navegar (após moderar, some).
+// Badges best-effort: comentários pendentes + chamados abertos. Recarrega ao navegar.
 const unreadCount = ref(0)
-const refreshUnread = async () => {
+const openTickets = ref(0)
+const badgeFor = (to: string) =>
+  to === '/admin/comments' ? unreadCount.value : to === '/admin/tickets' ? openTickets.value : 0
+const refreshBadges = async () => {
   try {
     unreadCount.value = (await admin.commentsUnreadCount()).count
-  } catch {
-    /* silencioso — badge é best-effort */
-  }
+  } catch { /* silencioso */ }
+  try {
+    openTickets.value = (await admin.ticketsOpenCount()).count
+  } catch { /* silencioso */ }
 }
-onMounted(refreshUnread)
-watch(() => route.path, refreshUnread)
+onMounted(refreshBadges)
+watch(() => route.path, refreshBadges)
 
 const initial = computed(
   () => (me.value?.name || me.value?.email || '?').charAt(0).toUpperCase()
@@ -64,9 +69,9 @@ const isActive = (match: string) => route.path.startsWith(match)
         <component :is="item.icon" class="w-4 h-4" />
         {{ item.label }}
         <span
-          v-if="item.to === '/admin/comments' && unreadCount > 0"
+          v-if="badgeFor(item.to) > 0"
           class="ml-auto min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold"
-        >{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        >{{ badgeFor(item.to) > 99 ? '99+' : badgeFor(item.to) }}</span>
       </NuxtLink>
 
       <div class="my-3 border-t border-white/5" />

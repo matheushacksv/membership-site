@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
-import { LogOut, Shield, ChevronDown, User as UserIcon } from 'lucide-vue-next'
+import { LogOut, Shield, ChevronDown, LifeBuoy, User as UserIcon } from 'lucide-vue-next'
 
 const { logout } = useAuth()
 const { data: me } = useMe()
@@ -115,6 +115,15 @@ const handleLogout = () => {
               >
                 <UserIcon class="w-4 h-4" />
                 Perfil
+              </NuxtLink>
+              <NuxtLink
+                to="/suporte"
+                role="menuitem"
+                class="flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5 hover:text-white transition-colors"
+                @click="open = false"
+              >
+                <LifeBuoy class="w-4 h-4" />
+                Suporte
               </NuxtLink>
               <button
                 type="button"

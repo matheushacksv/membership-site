@@ -1,5 +1,6 @@
 import type { BannerItem, CourseListItem } from '~/composables/useCatalog'
 import type { CommentAuthor } from '~/composables/useComments'
+import type { TicketDetail, TicketListItem, TicketMessage } from '~/composables/useTickets'
 
 export interface AdminCommentAuthor extends CommentAuthor {
   email: string
@@ -481,5 +482,18 @@ export const useAdmin = () => {
       }),
     deleteComment: (id: number) => // reusa endpoint do aluno (staff já permitido)
       api(`/catalog/comments/${id}`, { method: 'DELETE' }),
+
+    // Tickets (suporte)
+    ticketsList: (params?: { status?: string; category?: string }) =>
+      api<TicketListItem[]>('/tickets/admin/all', { query: params || {} }),
+    ticket: (id: number) => api<TicketDetail>(`/tickets/${id}`),
+    ticketReply: (id: number, fd: FormData) => // mesmo endpoint do aluno (staff permitido)
+      api<TicketMessage>(`/tickets/${id}/messages`, { method: 'POST', body: fd }),
+    ticketSetStatus: (id: number, status: string) =>
+      api<TicketListItem>(`/tickets/admin/${id}/status`, {
+        method: 'PATCH',
+        body: { status },
+      }),
+    ticketsOpenCount: () => api<{ count: number }>('/tickets/admin/open-count'),
   }
 }

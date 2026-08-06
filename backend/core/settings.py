@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'enrollments',
     'django_q',
     'integrations',
+    'tickets',
 ]
 
 MIDDLEWARE = [
