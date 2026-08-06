@@ -181,7 +181,7 @@ def refresh_token(request, data: RefreshIn):
             200,
             TokenOut(access=str(refresh.access_token), refresh=str(refresh)),  # type: ignore
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         return Status(401, Error(detail='Invalid or expired token'))
 
 

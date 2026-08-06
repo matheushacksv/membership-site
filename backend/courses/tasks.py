@@ -142,6 +142,6 @@ def check_quiz_webhook(url: str) -> dict:
         fire_quiz_webhook(url, _sample_quiz_payload(), settings.QUIZ_WEBHOOK_SECRET)
     except urllib.error.HTTPError as e:
         return {'ok': False, 'status': e.code, 'detail': f'Servidor respondeu HTTP {e.code}'}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {'ok': False, 'status': 0, 'detail': f'Não alcançável: {type(e).__name__}'}
     return {'ok': True, 'status': 200, 'detail': 'Webhook enviado com sucesso'}

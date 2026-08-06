@@ -100,7 +100,7 @@ def _stamp_pdf(data: bytes, text: str) -> bytes:
         out = io.BytesIO()
         writer.write(out)
         return out.getvalue()
-    except Exception:
+    except Exception:  # noqa: BLE001
         # encrypted/malformado: devolve original. DownloadLog já registrou quem baixou.
         return data
 

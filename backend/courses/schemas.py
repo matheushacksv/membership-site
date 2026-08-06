@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional, Self
+from typing import Literal, Self
 
 from ninja import Schema
 from pydantic import EmailStr, Field, model_validator
@@ -10,7 +10,7 @@ CategoryLit = Literal['sales', 'marketing', 'strategy', 'tool', 'customer', 'lif
 class CourseListOut(Schema):
     id: int
     name: str
-    image: Optional[str] = None
+    image: str | None = None
     category: str
     is_active: bool
     sales_page: str | None = None
@@ -33,7 +33,7 @@ class LessonAttachmentOut(Schema):
             return ''
         try:
             return f.url
-        except Exception:
+        except Exception:  # noqa: BLE001
             return str(f)
 
 
@@ -75,9 +75,8 @@ class LessonIn(Schema):
     @model_validator(mode='after')
     def at_least_one_content(self) -> Self:
         # Aula de exercício não tem vídeo nem conteúdo: o conteúdo dela são as perguntas.
-        if not self.video_id and not self.content and self.kind != 'quiz':
-            if self.is_published:
-                raise ValueError('Lesson need a video, content or material')
+        if self.is_published and not self.video_id and not self.content and self.kind != 'quiz':
+            raise ValueError('Lesson need a video, content or material')
         if bool(self.video_provider) != bool(self.video_id):
             raise ValueError('video_provider e video_id devem ser preenchidos juntos')
         return self

@@ -89,7 +89,7 @@ def send_welcome_emails(user_ids: list[int]):
             msg.attach_alternative(html, 'text/html')
             try:
                 msg.send()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning('welcome email falhou p/ %s: %s', user.email, e)
             if pace and i < len(users) - 1:
                 time.sleep(pace)
@@ -259,7 +259,7 @@ def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: boo
                     )
                     if was_enrolled:
                         enrolled += 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             errors.append(f'{email}: {e}')
 
     # Boas-vindas em LOTES (1 conexão SMTP + pacing por lote), em vez de 1 task/login

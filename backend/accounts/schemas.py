@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import Annotated, Optional, Self
+from typing import Annotated, Self
 
 from ninja import Schema
 from pydantic import EmailStr, Field, model_validator
 
 
 class UserSignup(Schema):
-    name: Optional[str] = None
+    name: str | None = None
     email: EmailStr
     password: str
     repeat_password: str
@@ -25,7 +25,7 @@ class UserSignup(Schema):
 
 
 class NewUserFromWebhook(Schema):
-    name: Optional[str] = None
+    name: str | None = None
     email: EmailStr
     password: str
 
@@ -129,9 +129,9 @@ class MessageOut(Schema):
 
 
 class UpdateMeIn(Schema):
-    name: Optional[str] = None
-    current_password: Optional[str] = None
-    new_password: Optional[str] = None
+    name: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None
     phone: str | None = None
 
     @model_validator(mode='after')
