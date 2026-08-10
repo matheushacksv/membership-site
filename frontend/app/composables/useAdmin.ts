@@ -1,3 +1,4 @@
+import type { AnnouncementAdmin } from '~/composables/useAnnouncements'
 import type { BannerItem, CourseListItem } from '~/composables/useCatalog'
 import type { CommentAuthor } from '~/composables/useComments'
 import type { TicketDetail, TicketListItem, TicketMessage } from '~/composables/useTickets'
@@ -495,5 +496,25 @@ export const useAdmin = () => {
         body: { status },
       }),
     ticketsOpenCount: () => api<{ count: number }>('/tickets/admin/open-count'),
+
+    // Informativos (broadcast) — create/update são multipart (FormData), imagem opcional.
+    announcementsList: () => api<AnnouncementAdmin[]>('/announcements/admin/all'),
+    announcementCreate: (fd: FormData) =>
+      api<AnnouncementAdmin>('/announcements/admin', { method: 'POST', body: fd }),
+    announcementUploadImage: async (file: File): Promise<string> => {
+      const fd = new FormData()
+      fd.append('file', file)
+      const r = await api<{ url: string }>('/announcements/admin/upload-image', {
+        method: 'POST',
+        body: fd,
+      })
+      return r.url
+    },
+    announcementUpdate: (id: number, fd: FormData) =>
+      api<AnnouncementAdmin>(`/announcements/admin/${id}`, { method: 'POST', body: fd }),
+    announcementDelete: (id: number) =>
+      api(`/announcements/admin/${id}`, { method: 'DELETE' }),
+    announcementSendEmail: (id: number) =>
+      api<AnnouncementAdmin>(`/announcements/admin/${id}/send-email`, { method: 'POST' }),
   }
 }

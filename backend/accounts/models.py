@@ -24,6 +24,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True) # type: ignore
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    # ponytail: 1 timestamp p/ os informativos (app announcements). Não-lido = informativo
+    # publicado depois deste marco. Teto: só "marcar todas como lidas", sem leitura item a
+    # item. Upgrade = tabela AnnouncementRead(user, announcement) se precisar granularidade.
+    notifications_seen_at = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 

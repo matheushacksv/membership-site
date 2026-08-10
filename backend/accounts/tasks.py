@@ -3,12 +3,14 @@ import time
 
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import EmailMultiAlternatives, get_connection, send_mail
+from django.core.mail import get_connection
 from django.db import transaction
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django_q.tasks import async_task
 from email_validator import EmailNotValidError, validate_email
+
+from core.utils.email import build_branded_email
 
 from .models import User
 
@@ -21,9 +23,9 @@ def _password_setup_url(user: User) -> str:
     return f'{settings.FRONTEND_URL}/reset-password?uid={uid}&token={token}'
 
 
-def _build_welcome_email(user: User) -> tuple[str, str, str]:
-    """(subject, text, html) do email de boas-vindas. Compartilhado pelo envio
-    single (send_welcome_email) e em lote (send_welcome_emails)."""
+def _build_welcome_email(user: User) -> tuple[str, str, str, str, str]:
+    """(subject, text, content_html, cta_label, cta_url) do email de boas-vindas.
+    Compartilhado pelo envio single (send_welcome_email) e em lote (send_welcome_emails)."""
     setup_url = _password_setup_url(user)
     login_url = f'{settings.FRONTEND_URL}/login'
     name = user.name or ''
@@ -34,13 +36,12 @@ def _build_welcome_email(user: User) -> tuple[str, str, str]:
         f'Defina sua senha de acesso neste link (expira em 24h):\n{setup_url}\n\n'
         f'Depois é só entrar em {login_url}.'
     )
-    html = (
+    content = (
         f'<p>Olá {name},</p>'
-        '<p>Sua conta na plataforma está pronta.</p>'
-        f'<p><a href="{setup_url}">Defina sua senha de acesso</a> (o link expira em 24h).</p>'
-        f'<p>Depois é só acessar <a href="{login_url}">{login_url}</a>.</p>'
+        '<p>Sua conta na plataforma está pronta. Defina sua senha de acesso no botão abaixo '
+        '(o link expira em 24 horas). Depois é só entrar normalmente.</p>'
     )
-    return 'Seu acesso à plataforma', text, html
+    return 'Seu acesso à plataforma', text, content, 'Definir minha senha', setup_url
 
 
 def send_welcome_email(user_id: int):
@@ -49,15 +50,8 @@ def send_welcome_email(user_id: int):
     except User.DoesNotExist:
         return
 
-    subject, text, html = _build_welcome_email(user)
-    send_mail(
-        subject=subject,
-        message=text,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=html,
-        fail_silently=False,
-    )
+    subject, text, content, cta_label, cta_url = _build_welcome_email(user)
+    build_branded_email(subject, [user.email], text=text, content_html=content, cta_label=cta_label, cta_url=cta_url).send(fail_silently=False)
 
 
 def send_welcome_emails(user_ids: list[int]):
@@ -78,15 +72,11 @@ def send_welcome_emails(user_ids: list[int]):
     connection.open()
     try:
         for i, user in enumerate(users):
-            subject, text, html = _build_welcome_email(user)
-            msg = EmailMultiAlternatives(
-                subject,
-                text,
-                settings.DEFAULT_FROM_EMAIL,
-                [user.email],
-                connection=connection,
+            subject, text, content, cta_label, cta_url = _build_welcome_email(user)
+            msg = build_branded_email(
+                subject, [user.email], text=text, content_html=content,
+                cta_label=cta_label, cta_url=cta_url, connection=connection,
             )
-            msg.attach_alternative(html, 'text/html')
             try:
                 msg.send()
             except Exception as e:  # noqa: BLE001
@@ -112,20 +102,15 @@ def send_new_course_email(user_id: int, course_name: str = ''):
         f'Seu acesso ao curso "{course}" foi liberado.\n\n'
         f'Entre com sua senha de sempre em {login_url} para começar.'
     )
-    html = (
+    content = (
         f'<p>Olá {name},</p>'
-        f'<p>Seu acesso ao curso <strong>{course}</strong> foi liberado.</p>'
-        f'<p>Entre com sua senha de sempre em <a href="{login_url}">{login_url}</a> para começar.</p>'
+        f'<p>Seu acesso ao curso <strong>{course}</strong> foi liberado. '
+        'Entre com sua senha de sempre para começar.</p>'
     )
-
-    send_mail(
-        subject='Novo curso liberado',
-        message=text,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=html,
-        fail_silently=True,
-    )
+    build_branded_email(
+        'Novo curso liberado', [user.email], text=text, content_html=content,
+        cta_label='Acessar a plataforma', cta_url=login_url,
+    ).send(fail_silently=True)
 
 
 def send_external_access_email(user_id: int, course_names: list[str] | None = None):
@@ -151,21 +136,15 @@ def send_external_access_email(user_id: int, course_names: list[str] | None = No
         f'Entre com sua senha em {login_url}.\n'
         f'Se precisar, redefina a senha em {forgot_url}.'
     )
-    html = (
+    content = (
         f'<p>Olá {name},</p>'
-        f'<p>Você foi matriculado {alvo}.</p>'
-        f'<p>Entre com sua senha em <a href="{login_url}">{login_url}</a>.</p>'
-        f'<p>Se precisar, <a href="{forgot_url}">redefina a senha</a>.</p>'
+        f'<p>Você foi matriculado {alvo}. Entre com sua senha de sempre no botão abaixo. '
+        f'Se precisar, <a href="{forgot_url}" style="color:#265F34;">redefina a senha</a>.</p>'
     )
-
-    send_mail(
-        subject='Você foi matriculado',
-        message=text,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=html,
-        fail_silently=True,
-    )
+    build_branded_email(
+        'Você foi matriculado', [user.email], text=text, content_html=content,
+        cta_label='Entrar na plataforma', cta_url=login_url,
+    ).send(fail_silently=True)
 
 
 def send_reset_email(user_id: int, reset_url: str):
@@ -180,23 +159,16 @@ def send_reset_email(user_id: int, reset_url: str):
         'O link expira em 24 horas.\n\n'
         'Se você não solicitou, ignore este email.'
     )
-
-    html = (
+    content = (
         f'<p>Olá {user.name or ""},</p>'
-        f'<p>Clique no link para redefinir sua senha:</p>'
-        f'<p><a href="{reset_url}">{reset_url}</a></p>'
-        '<p>O link expira em 24 horas.</p>'
-        '<p>Se você não solicitou, ignore este email</p>'
+        '<p>Recebemos um pedido para redefinir sua senha. Clique no botão abaixo para criar uma nova '
+        '(o link expira em 24 horas).</p>'
+        '<p style="color:#71717a;font-size:13px;">Se você não solicitou, ignore este email.</p>'
     )
-
-    send_mail(
-        subject='Redefinição de senha - Grupo Enriquecedor',
-        message=text,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        html_message=html,
-        fail_silently=True,
-    )
+    build_branded_email(
+        'Redefinição de senha - Grupo Enriquecedor', [user.email], text=text, content_html=content,
+        cta_label='Redefinir senha', cta_url=reset_url,
+    ).send(fail_silently=True)
 
 def send_welcome_email_with_reset(user_id: int, reset_url: str | None = None):
     send_welcome_email(user_id)

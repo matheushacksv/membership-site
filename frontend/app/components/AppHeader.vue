@@ -59,6 +59,8 @@ const handleLogout = () => {
           <span class="hidden md:inline">Admin</span>
         </NuxtLink>
 
+        <NotificationBell v-if="me" />
+
         <div ref="menuRef" class="relative">
           <button
             type="button"

@@ -5,6 +5,8 @@ import Link from '@tiptap/extension-link'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
+import Image from '@tiptap/extension-image'
+import Youtube from '@tiptap/extension-youtube'
 import {
   Bold,
   Italic,
@@ -18,23 +20,43 @@ import {
   Baseline,
   Undo,
   Redo,
+  Image as ImageIcon,
+  Youtube as YoutubeIcon,
+  Loader2,
 } from 'lucide-vue-next'
 
-const props = defineProps<{ modelValue: string }>()
+// enableMedia: liga imagem inline + vídeo (usado nos informativos, não nas aulas).
+// uploadImage: recebe o File e devolve a URL pública já salva (o corpo embute <img src>).
+const props = withDefaults(
+  defineProps<{
+    modelValue: string
+    enableMedia?: boolean
+    uploadImage?: (file: File) => Promise<string>
+  }>(),
+  { enableMedia: false },
+)
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+
+const extensions = [
+  StarterKit,
+  Link.configure({
+    openOnClick: false,
+    HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+  }),
+  TextStyle,
+  Color,
+  Highlight.configure({ multicolor: true }),
+]
+if (props.enableMedia) {
+  extensions.push(
+    Image.configure({ HTMLAttributes: { class: 'rounded-lg max-w-full' } }),
+    Youtube.configure({ width: 640, height: 360, nocookie: true }),
+  )
+}
 
 const editor = useEditor({
   content: props.modelValue,
-  extensions: [
-    StarterKit,
-    Link.configure({
-      openOnClick: false,
-      HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-    }),
-    TextStyle,
-    Color,
-    Highlight.configure({ multicolor: true }),
-  ],
+  extensions,
   editorProps: {
     attributes: {
       class:
@@ -46,6 +68,31 @@ const editor = useEditor({
     emit('update:modelValue', html === '<p></p>' ? '' : html)
   },
 })
+
+// Imagem inline: file picker → uploadImage (sobe pro storage) → setImage(url) no cursor.
+const imgInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+const pickImage = () => imgInput.value?.click()
+const onImagePick = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // permite re-selecionar o mesmo arquivo
+  if (!file || !props.uploadImage) return
+  uploading.value = true
+  try {
+    const url = await props.uploadImage(file)
+    editor.value?.chain().focus().setImage({ src: url }).run()
+  } catch { /* o caller mostra toast de erro */ } finally {
+    uploading.value = false
+  }
+}
+
+// Vídeo: cola a URL do YouTube; a extensão vira embed. No email o embed vira link "Assistir".
+const addVideo = () => {
+  const url = window.prompt('Cole a URL do vídeo do YouTube:')
+  if (!url) return
+  editor.value?.chain().focus().setYoutubeVideo({ src: url }).run()
+}
 
 watch(
   () => props.modelValue,
@@ -257,6 +304,35 @@ const applyHighlight = (value: string | null) => {
       >
         <Quote class="w-4 h-4" />
       </button>
+
+      <template v-if="enableMedia">
+        <span class="w-px h-5 bg-white/10 mx-1" />
+        <button
+          type="button"
+          title="Inserir imagem"
+          class="p-1.5 rounded text-neutral-300 hover:bg-white/10 disabled:opacity-40"
+          :disabled="uploading"
+          @click="pickImage"
+        >
+          <Loader2 v-if="uploading" class="w-4 h-4 animate-spin" />
+          <ImageIcon v-else class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          title="Inserir vídeo (YouTube)"
+          class="p-1.5 rounded text-neutral-300 hover:bg-white/10"
+          @click="addVideo"
+        >
+          <YoutubeIcon class="w-4 h-4" />
+        </button>
+        <input
+          ref="imgInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          class="hidden"
+          @change="onImagePick"
+        >
+      </template>
 
       <span class="w-px h-5 bg-white/10 mx-1" />
 
