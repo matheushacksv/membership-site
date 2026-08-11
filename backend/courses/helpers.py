@@ -1,7 +1,7 @@
 import io
 from datetime import timedelta
 
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery, Sum
 from django.utils import timezone
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
@@ -9,6 +9,19 @@ from reportlab.pdfgen import canvas
 
 from courses.models import FormResponse, Lesson
 from enrollments.models import CourseEnrollment, LessonProgress
+
+
+def course_duration_sq():
+    """Subquery: soma de duration_seconds das aulas de vídeo publicadas (segundos).
+    Subquery, não annotate direto no queryset da listagem: os joins de matrícula/
+    progresso ali fazem fan-out das linhas e um Sum sobre eles inflaria o total
+    (mesmo bug do certificado). O Subquery isola o agregado por curso."""
+    return Subquery(
+        Lesson.objects.filter(module__course=OuterRef('pk'), is_published=True)
+        .values('module__course')
+        .annotate(s=Sum('duration_seconds'))
+        .values('s')
+    )
 
 
 def _due_form(user, course):

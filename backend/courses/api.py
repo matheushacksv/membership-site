@@ -33,6 +33,7 @@ from .helpers import (
     _signature_text,
     _stamp_image,
     _stamp_pdf,
+    course_duration_sq,
 )
 from .models import (
     Banner,
@@ -169,6 +170,7 @@ def list_my_courses(request):
                 ),
                 distinct=True,
             ),
+            duration_seconds=course_duration_sq(),
             resume_lesson_id=Subquery(resume_sq),
         )
         .distinct()
@@ -188,7 +190,7 @@ def list_available_courses(request, category: str | None = None):
     qs = Course.objects.filter(is_active=True).exclude(Exists(enrolled)).filter(Q(sales_page__isnull=False) | Q(checkout_link__isnull=False))
     if category:
         qs = qs.filter(category=category)
-    return qs.order_by('name')
+    return qs.annotate(duration_seconds=course_duration_sq()).order_by('name')
 
 
 @catalog_router.get('/courses/{course_id}', response={200: CourseDetailOut, 403: Error, 404: Error})
@@ -206,7 +208,7 @@ def course_detail(request, course_id: int):
         return Status(403, Error(detail='Access denied'))
 
     course = get_object_or_404(
-        Course.objects.prefetch_related(
+        Course.objects.annotate(duration_seconds=course_duration_sq()).prefetch_related(
             Prefetch(
                 'modules',
                 queryset=Module.objects.filter(is_published=True)

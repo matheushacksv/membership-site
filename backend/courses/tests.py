@@ -25,6 +25,7 @@ from .api import (
     free_course_signup,
     get_lesson_quiz,
     link_attachment,
+    list_my_courses,
     module_library,
     reply_comment,
     start_lesson_quiz,
@@ -581,3 +582,39 @@ class QuizWebhookTestButtonTests(TestCase):
         staff = SimpleNamespace(auth=SimpleNamespace(is_staff=True))
         res = test_quiz_webhook(staff, WebhookTestIn(url='   '))
         self.assertEqual(res.status_code, 400)
+
+
+class CourseDurationTests(TestCase):
+    """duration_seconds do curso = soma só dos vídeos publicados, sem inflar com os
+    joins de progresso/matrícula da listagem (regressão análoga à do certificado)."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(email='d@d.com', password='x', name='D')
+        self.course = Course.objects.create(name='C', category=Course.Category.SALES, is_active=True)
+        self.module = Module.objects.create(course=self.course, name='M', order=0, is_published=True)
+        self.v1 = Lesson.objects.create(module=self.module, name='V1', order=0, is_published=True, duration_seconds=600)
+        self.v2 = Lesson.objects.create(module=self.module, name='V2', order=1, is_published=True, duration_seconds=300)
+        # exercício publicado: tempo de prova não conta como conteúdo → 0
+        Lesson.objects.create(
+            module=self.module, name='Quiz', kind=Lesson.Kind.QUIZ, order=2, is_published=True, time_limit_seconds=1200
+        )
+        # aula não publicada: fora da soma
+        Lesson.objects.create(module=self.module, name='Rascunho', order=3, is_published=False, duration_seconds=9999)
+        CourseEnrollment.objects.create(user=self.user, course=self.course, is_active=True)
+
+    def test_soma_so_videos_publicados_sem_inflar(self):
+        # progresso concluído nas 2 aulas → o join de progresso faz fan-out no queryset da
+        # listagem; o Subquery isolado tem que manter o total em 900 (não 1800).
+        LessonProgress.objects.create(user=self.user, lesson=self.v1, completed_at=timezone.now())
+        LessonProgress.objects.create(user=self.user, lesson=self.v2, completed_at=timezone.now())
+
+        courses = list(list_my_courses(SimpleNamespace(auth=self.user)))
+        self.assertEqual(len(courses), 1)
+        self.assertEqual(courses[0].duration_seconds, 900)  # 600+300; quiz e não-publicada fora
+
+    def test_sem_aula_publicada_com_duracao_e_none(self):
+        Lesson.objects.filter(module=self.module).update(is_published=False)
+        courses = list(list_my_courses(SimpleNamespace(auth=self.user)))
+        self.assertIsNone(courses[0].duration_seconds)  # Sum sobre vazio → NULL → front esconde
+
+

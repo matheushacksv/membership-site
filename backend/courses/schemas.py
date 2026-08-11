@@ -15,6 +15,7 @@ class CourseListOut(Schema):
     is_active: bool
     sales_page: str | None = None
     checkout_link: str | None = None
+    duration_seconds: int | None = None
     total_lessons: int | None = None
     completed_lessons: int | None = None
     resume_lesson_id: int | None = None
@@ -193,6 +194,7 @@ class CourseDetailOut(Schema):
     lp_template: str = ''
     image: str | None
     category: str
+    duration_seconds: int | None = None
     modules: list[ModuleOut] = []
     is_active: bool
     sales_page: str | None

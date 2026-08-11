@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, resolveComponent } from 'vue'
-import { ArrowRight, BookOpen, PlayCircle, ShoppingCart } from 'lucide-vue-next'
+import { ArrowRight, BookOpen, Clock, PlayCircle, ShoppingCart } from 'lucide-vue-next'
 import type { CourseListItem } from '~/composables/useCatalog'
 
 const props = defineProps<{
@@ -24,6 +24,7 @@ const isAvailable = computed(() => props.variant === 'available')
 const hasSales = computed(() => !!props.course.sales_page)
 const hasCheckout = computed(() => !!props.course.checkout_link)
 
+const durationLabel = computed(() => formatCourseDuration(props.course.duration_seconds))
 const total = computed(() => props.course.total_lessons ?? 0)
 const completed = computed(() => props.course.completed_lessons ?? 0)
 const percent = computed(() =>
@@ -88,6 +89,11 @@ const ctaLabel = computed(() => {
       <h3 class="text-lg font-semibold tracking-tight text-white leading-snug line-clamp-2">
         {{ course.name }}
       </h3>
+
+      <p v-if="durationLabel" class="flex items-center gap-1.5 text-[11px] text-neutral-500">
+        <Clock class="w-3 h-3 shrink-0" />
+        {{ durationLabel }} de conteúdo
+      </p>
 
       <!-- Progress (só matriculados com aulas) -->
       <div v-if="!isAvailable && total > 0" class="flex flex-col gap-1.5">

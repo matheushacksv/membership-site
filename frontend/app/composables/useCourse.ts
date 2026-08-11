@@ -40,6 +40,7 @@ export interface CourseDetail {
   checkout_link: string | null
   comments_enabled: boolean
   certificate_enabled: boolean
+  duration_seconds?: number | null
   modules: Module[]
 }
 
