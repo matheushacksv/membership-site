@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { BookOpen, Home, Image as ImageIcon, LifeBuoy, LogOut, Megaphone, MessageSquare, Plug, Users } from 'lucide-vue-next'
+import { Award, BookOpen, Home, Image as ImageIcon, LifeBuoy, LogOut, Megaphone, MessageSquare, Plug, Users } from 'lucide-vue-next'
 
 const route = useRoute()
 const { logout } = useAuth()
@@ -14,6 +14,7 @@ const items = [
   { to: '/admin/tickets', label: 'Suporte', icon: LifeBuoy, match: '/admin/tickets' },
   { to: '/admin/announcements', label: 'Informativos', icon: Megaphone, match: '/admin/announcements' },
   { to: '/admin/banners', label: 'Banners', icon: ImageIcon, match: '/admin/banners' },
+  { to: '/admin/certificado', label: 'Certificado', icon: Award, match: '/admin/certificado' },
   { to: '/admin/integracoes', label: 'Integrações', icon: Plug, match: '/admin/integracoes' },
 ]
 

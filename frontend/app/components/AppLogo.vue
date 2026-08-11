@@ -1,6 +1,6 @@
 <script setup lang="ts">
 withDefaults(defineProps<{ label?: string; showLabel?: boolean }>(), {
-  label: 'Área de Membros',
+  label: 'Grupo Enriquecedor',
   showLabel: true,
 })
 </script>

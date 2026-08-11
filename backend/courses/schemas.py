@@ -200,6 +200,7 @@ class CourseDetailOut(Schema):
     kiwify_product_id: str = ''
     access_days: int | None = None
     comments_enabled: bool = True
+    certificate_enabled: bool = False
 
 
 class CourseIn(Schema):
@@ -216,6 +217,8 @@ class CourseIn(Schema):
     access_days: int | None = None
     quiz_webhook_url: str = ''
     comments_enabled: bool = True
+    certificate_enabled: bool = False
+    certificate_hours: int | None = None
 
 
 class CourseOut(Schema):
@@ -233,6 +236,8 @@ class CourseOut(Schema):
     access_days: int | None = None
     quiz_webhook_url: str = ''
     comments_enabled: bool = True
+    certificate_enabled: bool = False
+    certificate_hours: int | None = None
 
     @staticmethod
     def resolve_image(obj) -> str | None:
@@ -253,6 +258,8 @@ class CourseUpdateIn(Schema):
     access_days: int | None = None
     quiz_webhook_url: str | None = None
     comments_enabled: bool | None = None
+    certificate_enabled: bool | None = None
+    certificate_hours: int | None = None
 
 
 class WebhookTestIn(Schema):

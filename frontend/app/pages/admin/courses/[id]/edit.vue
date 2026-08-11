@@ -10,6 +10,7 @@ import {
   Webhook,
   ClipboardList,
   Gift,
+  Award,
 } from 'lucide-vue-next'
 import type { CourseInput, ModuleItem } from '~/composables/useAdmin'
 
@@ -49,6 +50,8 @@ const form = reactive<CourseInput>({
   slug: course.value?.slug || '',
   lp_template: course.value?.lp_template || '',
   comments_enabled: course.value?.comments_enabled ?? true,
+  certificate_enabled: course.value?.certificate_enabled ?? false,
+  certificate_hours: course.value?.certificate_hours ?? null,
 })
 
 const config = useRuntimeConfig()
@@ -141,6 +144,8 @@ const persistCourse = async () => {
       slug: form.slug ? slugify(form.slug) : null,
       lp_template: form.lp_template || '',
       comments_enabled: form.comments_enabled,
+      certificate_enabled: form.certificate_enabled,
+      certificate_hours: form.certificate_hours ?? null,
     })
     savedAt.value = new Date()
   } catch (e: any) {
@@ -367,6 +372,27 @@ const savedLabel = computed(() => {
           <input v-model="form.comments_enabled" type="checkbox" class="accent-orange-500">
           Comentários habilitados
         </label>
+
+        <div class="pt-4 mt-2 border-t border-white/5 space-y-3">
+          <div class="flex items-center gap-2">
+            <Award class="w-3.5 h-3.5 text-emerald-400" />
+            <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-300">Certificado de conclusão</h3>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-neutral-400 cursor-pointer">
+            <input v-model="form.certificate_enabled" type="checkbox" class="accent-orange-500">
+            Emitir certificado ao concluir 100%
+          </label>
+          <div v-if="form.certificate_enabled">
+            <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Carga horária (horas)</label>
+            <input
+              v-model.number="form.certificate_hours"
+              type="number"
+              min="0"
+              placeholder="Vazio = soma da duração das aulas"
+              class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
+            >
+          </div>
+        </div>
 
         <div class="pt-4 mt-2 border-t border-white/5 space-y-4">
           <div class="flex items-center gap-2">

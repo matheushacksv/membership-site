@@ -43,7 +43,7 @@
 
     <!-- Footer subtle -->
     <footer class="relative z-10 px-6 md:px-10 py-6 text-center text-xs text-neutral-600">
-      &copy; {{ new Date().getFullYear() }} Área de Membros
+      &copy; {{ new Date().getFullYear() }} Grupo Enriquecedor
     </footer>
   </div>
 </template>

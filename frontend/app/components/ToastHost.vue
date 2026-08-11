@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { CheckCircle2, AlertCircle, Info } from 'lucide-vue-next'
+import type { ToastMessage } from '~/composables/useToast'
 
-const { toasts } = useToast()
+const { toasts, dismiss } = useToast()
+
+const goTo = (t: ToastMessage) => {
+  if (t.action) navigateTo(t.action.to)
+  dismiss(t.id)
+}
 
 const styles = {
   success: 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10',
@@ -29,7 +35,17 @@ const icons = {
           ]"
         >
           <component :is="icons[t.type]" class="w-4 h-4 mt-0.5 shrink-0" />
-          <span>{{ t.text }}</span>
+          <div class="min-w-0">
+            <span>{{ t.text }}</span>
+            <button
+              v-if="t.action"
+              type="button"
+              class="mt-1.5 block font-bold underline underline-offset-2 hover:opacity-80"
+              @click="goTo(t)"
+            >
+              {{ t.action.label }}
+            </button>
+          </div>
         </div>
       </TransitionGroup>
     </div>

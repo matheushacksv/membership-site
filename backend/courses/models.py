@@ -26,6 +26,8 @@ class Course(models.Model):
     access_days = models.PositiveIntegerField(null=True, blank=True, help_text='Dias de acesso após matrícula. Vazio = vitalício')
     quiz_webhook_url = models.URLField(max_length=500, blank=True, default='', help_text='POST disparado ao aluno concluir um exercício deste curso. Vazio = desligado')
     comments_enabled = models.BooleanField(default=True, help_text='Alunos podem comentar nas aulas deste curso')
+    certificate_enabled = models.BooleanField(default=False, help_text='Emite certificado quando o aluno conclui 100% das aulas publicadas')
+    certificate_hours = models.PositiveIntegerField(null=True, blank=True, help_text='Carga horária impressa no certificado. Vazio = soma da duração das aulas')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

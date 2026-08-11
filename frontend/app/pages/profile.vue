@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { Camera, Loader2 } from 'lucide-vue-next'
+import { ref, computed, watch, onMounted } from 'vue'
+import { Award, Camera, Download, Loader2 } from 'lucide-vue-next'
+import { saveBlob, useCertificates, type Certificate } from '~/composables/useCertificates'
 
 definePageMeta({ layout: 'default' })
-useHead({ title: 'Perfil — Área de Membros' })
+useHead({ title: 'Perfil — Grupo Enriquecedor' })
 
 const { data: me, refresh } = useMe()
 const { update, uploadAvatar } = useProfile()
+const certApi = useCertificates()
 const toast = useToast()
 
 const ACCEPTED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -57,19 +59,21 @@ const onAvatarChange = async (e: Event) => {
 }
 
 // dados pessoais
-const form = ref({ name: '', phone: '' })
+const form = ref({ name: '', phone: '', cpf: '' })
 const savingProfile = ref(false)
 
 const syncForm = () => {
   form.value.name = me.value?.name || ''
   form.value.phone = me.value?.phone || ''
+  form.value.cpf = me.value?.cpf || ''
 }
 watch(me, syncForm, { immediate: true })
 
 const dirty = computed(() => {
   const n = (me.value?.name || '') !== form.value.name.trim()
   const p = (me.value?.phone || '') !== form.value.phone.trim()
-  return n || p
+  const c = (me.value?.cpf || '') !== form.value.cpf.trim()
+  return n || p || c
 })
 
 const saveProfile = async () => {
@@ -79,6 +83,7 @@ const saveProfile = async () => {
     await update({
       name: form.value.name.trim(),
       phone: form.value.phone.trim() || null,
+      cpf: form.value.cpf.trim(),
     })
     await refresh()
     toast.success('Dados atualizados')
@@ -86,6 +91,29 @@ const saveProfile = async () => {
     toast.error(err?.data?.detail || 'Falha ao salvar')
   } finally {
     savingProfile.value = false
+  }
+}
+
+// meus certificados
+const certificates = ref<Certificate[]>([])
+const certDownloading = ref<string | null>(null)
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
+
+onMounted(async () => {
+  try {
+    certificates.value = await certApi.list()
+  } catch { /* silencioso */ }
+})
+
+const downloadCert = async (cert: Certificate) => {
+  certDownloading.value = cert.code
+  try {
+    const blob = await certApi.download(cert.code)
+    saveBlob(blob, `certificado-${cert.code}.pdf`)
+  } catch (err: any) {
+    toast.error(err?.data?.detail || 'Falha ao baixar certificado')
+  } finally {
+    certDownloading.value = null
   }
 }
 
@@ -194,6 +222,14 @@ const changePassword = async () => {
           placeholder="(11) 99999-9999"
           autocomplete="tel"
         />
+        <div>
+          <AppInput
+            v-model="form.cpf"
+            label="CPF"
+            placeholder="Somente números"
+          />
+          <p class="mt-1 text-[11px] text-neutral-600">Usado para emitir os certificados de conclusão.</p>
+        </div>
         <label class="block">
           <span class="block text-xs font-medium tracking-wider uppercase text-neutral-400 mb-2">Email</span>
           <input
@@ -255,6 +291,41 @@ const changePassword = async () => {
           </PrimaryButton>
         </div>
       </form>
+    </section>
+
+    <!-- Meus certificados -->
+    <section class="bg-white/5 border border-white/10 rounded-xl p-6">
+      <h2 class="text-lg font-medium tracking-tight mb-4 flex items-center gap-2">
+        <Award class="w-5 h-5 text-emerald-400" />
+        Meus certificados
+      </h2>
+      <p v-if="!certificates.length" class="text-sm text-neutral-500">
+        Conclua 100% de um curso com certificado para emitir o seu.
+      </p>
+      <ul v-else class="space-y-2">
+        <li
+          v-for="cert in certificates"
+          :key="cert.code"
+          class="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3"
+        >
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">{{ cert.course_name }}</p>
+            <p class="text-[11px] text-neutral-500 mt-0.5">
+              Emitido em {{ fmtDate(cert.issued_at) }}<span v-if="cert.hours"> · {{ cert.hours }}h</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            :disabled="certDownloading === cert.code"
+            class="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+            @click="downloadCert(cert)"
+          >
+            <Loader2 v-if="certDownloading === cert.code" class="w-3.5 h-3.5 animate-spin" />
+            <Download v-else class="w-3.5 h-3.5" />
+            Baixar
+          </button>
+        </li>
+      </ul>
     </section>
   </div>
 </template>

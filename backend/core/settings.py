@@ -180,7 +180,7 @@ PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 FRONTEND_URL = config('FRONTEND_URL')
 
 # Nome da marca exibido nos emails (rodapé/alt do logo).
-SITE_NAME = config('SITE_NAME', default='Área de Membros')
+SITE_NAME = config('SITE_NAME', default='Grupo Enriquecedor')
 
 # Email
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')

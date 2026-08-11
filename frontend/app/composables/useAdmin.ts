@@ -42,6 +42,8 @@ export interface AdminCourse extends CourseListItem {
   slug?: string | null
   is_free?: boolean
   lp_template?: string
+  certificate_enabled?: boolean
+  certificate_hours?: number | null
 }
 
 export interface CourseInput {
@@ -58,6 +60,8 @@ export interface CourseInput {
   is_free?: boolean
   lp_template?: string
   comments_enabled?: boolean
+  certificate_enabled?: boolean
+  certificate_hours?: number | null
 }
 
 export interface ModuleItem {
@@ -95,6 +99,7 @@ export interface LessonItem {
   content?: string | null
   allow_retake?: boolean
   time_limit_seconds?: number
+  duration_seconds?: number
   order: number
   is_published: boolean
 }
@@ -109,6 +114,7 @@ export interface LessonInput {
   content?: string | null
   allow_retake?: boolean
   time_limit_seconds?: number
+  duration_seconds?: number
   order?: number
   is_published?: boolean
 }
@@ -133,6 +139,18 @@ export interface EvolutionConfig {
   instance: string
   api_key: string
   is_active: boolean
+}
+
+export interface PandaConfig {
+  base_url: string
+  api_key: string
+  is_active: boolean
+}
+
+export interface CertificateConfig {
+  signer_name: string
+  signer_role: string
+  has_signature: boolean
 }
 
 export interface BulkImportBody {
@@ -453,6 +471,35 @@ export const useAdmin = () => {
         method: 'PUT',
         body,
       }),
+
+    // Integrações — Panda Video (duração automática das aulas)
+    getPandaConfig: () =>
+      api<PandaConfig>('/integrations/panda/config'),
+    savePandaConfig: (body: PandaConfig) =>
+      api<PandaConfig>('/integrations/panda/config', {
+        method: 'PUT',
+        body,
+      }),
+    pandaBackfill: () =>
+      api<{ queued: number }>('/integrations/panda/backfill', { method: 'POST' }),
+
+    // Certificado — config (assinante + assinatura no banco)
+    getCertificateConfig: () =>
+      api<CertificateConfig>('/enrollments/admin/certificate-config'),
+    saveCertificateConfig: (body: { signer_name: string; signer_role: string }) =>
+      api<CertificateConfig>('/enrollments/admin/certificate-config', { method: 'PUT', body }),
+    uploadCertificateSignature: (file: File) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      return api<CertificateConfig>('/enrollments/admin/certificate-config/signature', {
+        method: 'POST',
+        body: fd,
+      })
+    },
+    deleteCertificateSignature: () =>
+      api<CertificateConfig>('/enrollments/admin/certificate-config/signature', { method: 'DELETE' }),
+    certificateSignatureBlob: () =>
+      api<Blob>('/enrollments/admin/certificate-config/signature', { responseType: 'blob' }),
 
     // Banners
     listBanners: () => api<BannerItem[]>('/admin/banners'),

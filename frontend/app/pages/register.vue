@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { FetchError } from 'ofetch'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Cadastro — Área de Membros' })
+useHead({ title: 'Cadastro — Grupo Enriquecedor' })
 
 const { register } = useAuth()
 const route = useRoute()

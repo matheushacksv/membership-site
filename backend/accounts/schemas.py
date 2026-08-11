@@ -35,6 +35,7 @@ class UserOut(Schema):
     name: str | None
     email: EmailStr
     phone: str | None = None
+    cpf: str = ''
     avatar: str | None = None
     is_staff: bool = False
 
@@ -133,6 +134,7 @@ class UpdateMeIn(Schema):
     current_password: str | None = None
     new_password: str | None = None
     phone: str | None = None
+    cpf: str | None = None
 
     @model_validator(mode='after')
     def check_password_fields(self) -> Self:
