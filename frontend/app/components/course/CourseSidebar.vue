@@ -21,6 +21,8 @@ const totals = computed(() => {
   }
 })
 
+const durationLabel = computed(() => formatCourseDuration(props.course.duration_seconds))
+
 // Certificado: só quando o curso emite e o aluno está 100%.
 const certApi = useCertificates()
 const toast = useToast()
@@ -85,6 +87,9 @@ watch(() => props.activeLessonId, () => nextTick(scrollActiveIntoView))
     <div class="px-5 py-4 border-b border-white/5 flex items-start gap-2">
       <div class="flex-1 min-w-0">
         <h2 class="text-sm font-bold text-white truncate">{{ course.name }}</h2>
+        <p class="mt-1 text-[11px] text-neutral-500">
+          {{ totals.total }} aulas<span v-if="durationLabel"> · {{ durationLabel }}</span>
+        </p>
         <div class="mt-3">
           <div class="flex items-center justify-between text-[10px] text-neutral-500 mb-1">
             <span>Progresso</span>
