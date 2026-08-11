@@ -40,3 +40,5 @@ Thumbs.db
 tests/
 test_*.http
 design-system.html
+
+.zed

@@ -99,6 +99,18 @@ admin_router = Router(tags=['Courses Admin'])
 # Helpers
 
 
+def _enqueue_panda_duration(lesson) -> None:
+    """Best-effort: enfileira a busca da duração do vídeo no Panda pra preencher
+    duration_seconds (carga horária automática). Só p/ vídeo Panda com id; falha de
+    broker não pode derrubar o CRUD da aula."""
+    if lesson.video_provider != 'panda' or not lesson.video_id:
+        return
+    try:
+        async_task('integrations.tasks.fetch_lesson_duration', lesson.id)
+    except Exception:  # noqa: BLE001
+        logger.exception('Falha ao enfileirar duração do vídeo Panda')
+
+
 def _assert_enrolled_or_403(request, lesson: Lesson):
     now = timezone.now()
 
@@ -667,6 +679,8 @@ def create_course(request, data: CourseIn):
         access_days=data.access_days,
         quiz_webhook_url=data.quiz_webhook_url,
         comments_enabled=data.comments_enabled,
+        certificate_enabled=data.certificate_enabled,
+        certificate_hours=data.certificate_hours,
     )
 
     return Status(201, course)
@@ -895,6 +909,7 @@ def create_lesson(request, data: LessonIn):
         )
     except IntegrityError:
         return Status(409, Error(detail='Order conflict or invalid video fields'))
+    _enqueue_panda_duration(lesson)
     return Status(201, lesson)
 
 
@@ -915,9 +930,11 @@ def update_lesson(request, lesson_id: int, data: LessonUpdateIn):
     staff_required(request)
 
     lesson = get_object_or_404(Lesson, id=lesson_id)
+    old_video = (lesson.video_provider, lesson.video_id)
 
+    dumped = data.model_dump(exclude_unset=True)
     text_fields = {'description', 'video_provider', 'video_id', 'content'}
-    for field, value in data.model_dump(exclude_unset=True).items():
+    for field, value in dumped.items():
         if field in text_fields and value is None:
             value = ''
         setattr(lesson, field, value)
@@ -926,6 +943,10 @@ def update_lesson(request, lesson_id: int, data: LessonUpdateIn):
         lesson.save()
     except IntegrityError:
         return Status(409, Error(detail='Invalid video fields or order conflict'))
+    # Só rebusca no Panda se o vídeo REALMENTE mudou: não sobrescreve a duração digitada
+    # à mão a cada save (publicar/renomear) nem re-varre a biblioteca à toa.
+    if (lesson.video_provider, lesson.video_id) != old_video:
+        _enqueue_panda_duration(lesson)
     return Status(200, lesson)
 
 

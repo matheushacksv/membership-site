@@ -4,7 +4,7 @@ import { FetchError } from 'ofetch'
 import { Mail } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Recuperar senha — Área de Membros' })
+useHead({ title: 'Recuperar senha — Grupo Enriquecedor' })
 
 const api = useApi()
 

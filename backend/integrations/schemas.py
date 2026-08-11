@@ -27,3 +27,15 @@ class EvolutionConfigOut(Schema):
     instance: str
     api_key: str
     is_active: bool
+
+
+class PandaConfigIn(Schema):
+    base_url: str = 'https://api-v2.pandavideo.com.br'
+    api_key: str = ''
+    is_active: bool = False
+
+
+class PandaConfigOut(Schema):
+    base_url: str
+    api_key: str
+    is_active: bool

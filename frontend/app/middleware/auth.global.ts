@@ -14,8 +14,10 @@ export default defineNuxtRouteMiddleware((to) => {
   // Access pode expirar (30 min) com refresh ainda válido (7 dias): deixa passar.
   // A camada useApi faz refresh-and-retry na primeira chamada e restaura o access.
   const isAuthenticated = !!access.value || !!refresh.value
-  // LP de curso grátis é pública e dinâmica (/lp/<slug>) — Set não cobre, checa prefixo.
-  const isPublic = PUBLIC_ROUTES.has(to.path) || to.path.startsWith('/lp/')
+  // LP de curso grátis (/lp/<slug>) e verificação de certificado (/verificar/<code>) são
+  // públicas e dinâmicas — Set não cobre, checa prefixo.
+  const isPublic =
+    PUBLIC_ROUTES.has(to.path) || to.path.startsWith('/lp/') || to.path.startsWith('/verificar/')
 
   if (!isAuthenticated && !isPublic) {
     return navigateTo({ path: '/login', query: { redirect: to.fullPath } })

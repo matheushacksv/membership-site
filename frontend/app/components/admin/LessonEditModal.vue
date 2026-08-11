@@ -27,6 +27,7 @@ const form = reactive({
   content: '',
   allow_retake: true,
   time_limit_min: 0, // exercício: tempo em minutos (0 = sem tempo); vira segundos no save
+  duration_min: 0, // vídeo: duração em minutos (Panda preenche sozinho; editável); vira segundos no save
   is_published: true,
 })
 
@@ -53,6 +54,7 @@ watch(
       form.content = l.content || ''
       form.allow_retake = l.allow_retake ?? true
       form.time_limit_min = Math.round((l.time_limit_seconds || 0) / 60)
+      form.duration_min = Math.round((l.duration_seconds || 0) / 60)
       form.is_published = l.is_published
       questions.value = form.kind === 'quiz' ? await admin.getLessonQuiz(id) : []
       await loadAttachments(id)
@@ -155,6 +157,7 @@ const save = async () => {
       content: form.content || null,
       allow_retake: form.allow_retake,
       time_limit_seconds: Math.max(0, Math.round(form.time_limit_min || 0)) * 60,
+      duration_seconds: Math.max(0, Math.round(form.duration_min || 0)) * 60,
       is_published: form.is_published,
     })
     // Perguntas vão num PUT separado; o backend valida (≥2 opções, gabarito no range)
@@ -243,6 +246,19 @@ const save = async () => {
             class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
           >
         </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Duração (min)</label>
+        <input
+          v-model.number="form.duration_min"
+          type="number"
+          min="0"
+          class="w-32 px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
+        >
+        <p class="text-[11px] text-neutral-500 mt-1">
+          Vídeo do Panda preenche sozinho ao salvar. Edite para ajustar manualmente. Base da carga horária do certificado.
+        </p>
       </div>
 
       <div>

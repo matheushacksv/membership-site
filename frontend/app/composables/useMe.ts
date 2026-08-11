@@ -3,6 +3,7 @@ export interface MeUser {
   name: string | null
   email: string
   phone: string | null
+  cpf: string
   avatar: string | null
   is_staff: boolean
 }

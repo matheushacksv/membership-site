@@ -4,7 +4,7 @@ import { FetchError } from 'ofetch'
 import { CheckCircle2, AlertCircle, Loader2, Mail } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Redefinir senha — Área de Membros' })
+useHead({ title: 'Redefinir senha — Grupo Enriquecedor' })
 
 const route = useRoute()
 const api = useApi()

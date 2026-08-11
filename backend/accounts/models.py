@@ -20,6 +20,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     name = models.CharField(max_length=155, null=True, blank=True)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, null=True, blank=True)
+    cpf = models.CharField(max_length=11, blank=True, default='')  # só dígitos; impresso no certificado
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     is_active = models.BooleanField(default=True) # type: ignore
     is_staff = models.BooleanField(default=False)

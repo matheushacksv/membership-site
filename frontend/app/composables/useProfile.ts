@@ -3,6 +3,7 @@ import type { MeUser } from './useMe'
 export interface UpdateMePayload {
   name?: string
   phone?: string | null
+  cpf?: string
   current_password?: string
   new_password?: string
 }

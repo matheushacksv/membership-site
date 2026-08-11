@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { AlertCircle, Loader2 } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Entrando — Área de Membros' })
+useHead({ title: 'Entrando — Grupo Enriquecedor' })
 
 const route = useRoute()
 const api = useApi()

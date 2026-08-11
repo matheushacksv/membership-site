@@ -27,6 +27,7 @@ from courses.models import Course
 from enrollments.models import CourseEnrollment
 
 from .models import User, UserManager
+from .utils import normalize_cpf, validate_cpf
 from .schemas import (
     BulkImportIn,
     BulkImportOut,
@@ -209,7 +210,7 @@ def me(request):
     return request.auth
 
 
-@router.put('/me', response=UserOut)
+@router.put('/me', response={200: UserOut, 400: Error})
 def update_me(request, data: UpdateMeIn):
 
     user = request.auth
@@ -226,6 +227,12 @@ def update_me(request, data: UpdateMeIn):
 
     if data.phone is not None:
         user.phone = data.phone.strip() or None
+
+    if data.cpf is not None:
+        cpf = normalize_cpf(data.cpf)
+        if cpf and not validate_cpf(cpf):
+            return Status(400, Error(detail='CPF inválido'))
+        user.cpf = cpf
 
     user.save()
     return Status(200, user)

@@ -74,3 +74,54 @@ class CourseProgressOut(Schema):
     total_lessons: int
     completed_count: int
     percent: float
+
+
+class CertificateOut(Schema):
+    code: str
+    course_id: int
+    course_name: str
+    hours: int | None = None
+    issued_at: datetime
+
+    @staticmethod
+    def resolve_course_name(obj) -> str:
+        return obj.course.name
+
+
+def _mask_cpf(digits: str) -> str:
+    # 529.982.247-25 → 529.***.***-25 (confere sem expor o número inteiro; LGPD)
+    return f'{digits[:3]}.***.***-{digits[9:]}' if len(digits) == 11 else '***'
+
+
+class CertificateVerifyOut(Schema):
+    """Payload PÚBLICO da verificação — sem CPF completo (LGPD)."""
+
+    code: str
+    student_name: str
+    student_cpf: str  # mascarado
+    course_name: str
+    hours: int | None = None
+    issued_at: datetime
+
+    @staticmethod
+    def resolve_course_name(obj) -> str:
+        return obj.course.name
+
+    @staticmethod
+    def resolve_student_cpf(obj) -> str:
+        return _mask_cpf(obj.student_cpf)
+
+
+class CertificateConfigOut(Schema):
+    signer_name: str
+    signer_role: str
+    has_signature: bool
+
+    @staticmethod
+    def resolve_has_signature(obj) -> bool:
+        return bool(obj.signature)
+
+
+class CertificateConfigIn(Schema):
+    signer_name: str = ''
+    signer_role: str = ''

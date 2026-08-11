@@ -14,15 +14,17 @@ from ninja import Router, Status
 from accounts.models import User
 from core.utils.errors import Error
 from core.utils.permissions import staff_required
-from courses.models import Course
+from courses.models import Course, Lesson
 from enrollments.models import CourseEnrollment
 from enrollments.services import expiry_from_days
-from integrations.models import EvolutionConfig
+from integrations.models import EvolutionConfig, PandaConfig
 from integrations.schemas import (
     EvolutionConfigIn,
     EvolutionConfigOut,
     ExternalEnrollIn,
     ExternalEnrollOut,
+    PandaConfigIn,
+    PandaConfigOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,36 @@ def update_evolution_config(request, data: EvolutionConfigIn):
     cfg.is_active = data.is_active
     cfg.save()
     return Status(200, cfg)
+
+
+@router.get('/panda/config', response={200: PandaConfigOut, 403: Error})
+def get_panda_config(request):
+    staff_required(request)
+    return Status(200, PandaConfig.load())
+
+
+@router.put('/panda/config', response={200: PandaConfigOut, 403: Error})
+def update_panda_config(request, data: PandaConfigIn):
+    staff_required(request)
+    cfg = PandaConfig.load()
+    cfg.base_url = data.base_url.strip() or 'https://api-v2.pandavideo.com.br'
+    cfg.api_key = data.api_key.strip()
+    cfg.is_active = data.is_active
+    cfg.save()
+    return Status(200, cfg)
+
+
+@router.post('/panda/backfill', response={200: dict, 400: Error, 403: Error})
+def backfill_panda(request):
+    """Reprocessa a duração de todas as aulas com vídeo Panda: enfileira 1 sync que varre a
+    biblioteca uma vez e casa video_external_id → aula. Cobre aulas cadastradas antes."""
+    staff_required(request)
+    if not PandaConfig.load().ready:
+        return Status(400, Error(detail='Configure e ative o Panda primeiro'))
+
+    count = Lesson.objects.filter(video_provider='panda').exclude(video_id='').count()
+    async_task('integrations.tasks.sync_panda_durations')
+    return Status(200, {'queued': count})
 
 
 APPROVED = {'order_approved'}

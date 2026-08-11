@@ -35,7 +35,7 @@ def render_email(content_html: str, cta_label: str | None = None, cta_url: str |
     cta_label/cta_url: se ambos vierem, renderiza um botão destacado (ex.: "Acessar a plataforma").
     O logo é referenciado por cid:brandlogo — use build_branded_email() para anexá-lo.
     """
-    site = getattr(settings, 'SITE_NAME', 'Área de Membros')
+    site = getattr(settings, 'SITE_NAME', 'Grupo Enriquecedor')
 
     button = ''
     if cta_label and cta_url:

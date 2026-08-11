@@ -39,6 +39,7 @@ export interface CourseDetail {
   sales_page: string | null
   checkout_link: string | null
   comments_enabled: boolean
+  certificate_enabled: boolean
   modules: Module[]
 }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { X } from 'lucide-vue-next'
+import { Award, Loader2, X } from 'lucide-vue-next'
 import type { CourseDetail } from '~/composables/useCourse'
+import { saveBlob, useCertificates } from '~/composables/useCertificates'
 
 const props = defineProps<{
   course: CourseDetail
@@ -19,6 +20,33 @@ const totals = computed(() => {
     percent: all.length ? Math.round((completed / all.length) * 100) : 0,
   }
 })
+
+// Certificado: só quando o curso emite e o aluno está 100%.
+const certApi = useCertificates()
+const toast = useToast()
+const certLoading = ref(false)
+const showCertificate = computed(
+  () => props.course.certificate_enabled && totals.value.total > 0 && totals.value.percent === 100,
+)
+
+const getCertificate = async () => {
+  certLoading.value = true
+  try {
+    const cert = await certApi.issue(props.course.id)
+    const blob = await certApi.download(cert.code)
+    saveBlob(blob, `certificado-${cert.code}.pdf`)
+  } catch (e: any) {
+    const detail = e?.data?.detail || 'Falha ao emitir certificado'
+    // 409 = nome/CPF faltando → toast com atalho pro perfil
+    if (e?.response?.status === 409 || e?.status === 409) {
+      toast.error(detail, { label: 'Ir ao perfil', to: '/profile' })
+    } else {
+      toast.error(detail)
+    }
+  } finally {
+    certLoading.value = false
+  }
+}
 
 const navRef = ref<HTMLElement | null>(null)
 
@@ -68,6 +96,17 @@ watch(() => props.activeLessonId, () => nextTick(scrollActiveIntoView))
               :style="{ width: `${totals.percent}%` }"
             />
           </div>
+          <button
+            v-if="showCertificate"
+            type="button"
+            :disabled="certLoading"
+            class="mt-3 w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+            @click="getCertificate"
+          >
+            <Loader2 v-if="certLoading" class="w-3.5 h-3.5 animate-spin" />
+            <Award v-else class="w-3.5 h-3.5" />
+            Baixar certificado
+          </button>
         </div>
       </div>
       <button
