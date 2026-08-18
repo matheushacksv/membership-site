@@ -11,7 +11,7 @@ from django.db import models, transaction
 from django.db.models import Count, Exists, F, OuterRef, Prefetch, Subquery
 from django.db.models.query_utils import Q
 from django.db.utils import IntegrityError
-from django.http import FileResponse, HttpResponse
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_q.models import Schedule
@@ -30,9 +30,6 @@ from .helpers import (
     _due_form,
     _has_course_access,
     _module_locked,
-    _signature_text,
-    _stamp_image,
-    _stamp_pdf,
     course_duration_sq,
 )
 from .models import (
@@ -553,45 +550,22 @@ def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
     return Status(200, result)
 
 
-# Teto só p/ IMAGEM: acima disso o re-encode do raster inteiro pesa demais; serve cru. PDF ignora
-# (carimbo de PDF é custo constante, ver _stamp_pdf).
-STAMP_MAX_BYTES = 15 * 1024 * 1024
-
-
 @catalog_router.get('/attachments/{attachment_id}/download', response={403: Error, 404: Error})
 def download_attachment(request, attachment_id: int):
     att = get_object_or_404(LessonAttachment.objects.select_related('lesson__module'), id=attachment_id)
     if denied := _assert_enrolled_or_403(request, att.lesson):  # acesso + lock de módulo
         return denied
 
-    ip = _client_ip(request)
-    DownloadLog.objects.create(user=request.auth, attachment=att, email=request.auth.email, ip=ip or None)
+    # Trilha forense: quem clicou baixar, quando, IP. Snapshot do email sobrevive à edição do user.
+    DownloadLog.objects.create(user=request.auth, attachment=att, email=request.auth.email, ip=_client_ip(request) or None)
 
-    name = Path(att.file_url.name).name
-    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
-    text = _signature_text(request.auth, ip)
-
-    filename = att.title or name
-    body = ctype = None
-    # PDF: carimbo agora é custo constante (1ª/meio/última página, ver _stamp_pdf) → sempre roda.
-    # Imagem: re-encoda o raster INTEIRO na RAM, então acima de STAMP_MAX_BYTES serve cru pra não pesar.
-    # Falha no carimbo (Pillow recusa a imagem, DecompressionBomb) degrada pro arquivo cru, nunca vira
-    # 500. DownloadLog já guarda a trilha de quem baixou.
-    is_img = ext in ('jpg', 'jpeg', 'png', 'webp')
-    if ext == 'pdf' or (is_img and (att.size_bytes or 0) <= STAMP_MAX_BYTES):
-        try:
-            data = att.file_url.open('rb').read()
-            body, ctype = (_stamp_pdf(data, text), 'application/pdf') if ext == 'pdf' else _stamp_image(data, text)
-        except Exception:  # noqa: BLE001
-            body = None
-
-    if body is None:
-        # não carimbável, imagem grande demais, ou carimbo falhou: stream cru.
-        return FileResponse(att.file_url.open('rb'), as_attachment=True, filename=filename)
-
-    resp = HttpResponse(body, content_type=ctype)
-    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return resp
+    # ponytail: carimbo por-usuário DESLIGADO até a infra melhorar. Proxiar o arquivo pelo backend puxava
+    # tudo do MinIO por WAN (0.6-5 MB/s) e prendia 1 dos 3 workers por 20-30s → download lento + risco de
+    # travar o site. Bucket é public-read (o carimbo já vazava pela URL direta), então redireciona: 1 hop,
+    # stream nativo do MinIO, worker liberado na hora. DownloadLog acima mantém a trilha de quem baixou.
+    # Religar quando MinIO estiver na MESMA LAN + bucket privado: voltar a ler att.file_url e carimbar com
+    # _stamp_pdf/_stamp_image (ainda em courses/helpers.py; ver git deste arquivo p/ o bloco).
+    return HttpResponseRedirect(att.file_url.url)
 
 
 @catalog_router.get('/banners', response=list[BannerOut])
