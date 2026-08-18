@@ -6,7 +6,34 @@ defineProps<{ attachments: LessonAttachment[] }>()
 
 const toast = useToast()
 const courseApi = useCourse()
+const { data: me } = useMe()
 const downloading = ref<number | null>(null)
+
+// Carimbo forense visível (deterrente). Feito no browser: o backend só redireciona pro MinIO
+// (rápido) e não relê o arquivo. IP não fica aqui (cliente não sabe o próprio IP público) mas o
+// DownloadLog do backend já grava IP/email/hora. Marca é contornável pela URL pública, igual antes.
+const signatureText = () => {
+  const u = me.value
+  const who = u?.name || u?.email || ''
+  const when = new Date().toLocaleDateString('pt-BR')
+  return `Baixado por ${who} · ${u?.email || ''} · ${when}`
+}
+
+// Carimba 1ª/meio/última página (custo baixo, marca no começo/meio/fim). Lança se o PDF for
+// inválido → o caller degrada pro arquivo cru.
+const stampPdf = async (buf: ArrayBuffer): Promise<Uint8Array> => {
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib') // lazy: só carrega no 1º download
+  const doc = await PDFDocument.load(buf)
+  const font = await doc.embedFont(StandardFonts.Helvetica)
+  const pages = doc.getPages()
+  const n = pages.length
+  const idx = [...new Set([0, Math.floor(n / 2), n - 1])]
+  const text = signatureText()
+  for (const i of idx) {
+    pages[i].drawText(text, { x: 18, y: 10, size: 7, font, color: rgb(0.45, 0.45, 0.45) })
+  }
+  return doc.save()
+}
 
 const fmtSize = (b: number) => {
   if (!b) return ''
@@ -18,9 +45,17 @@ const fmtSize = (b: number) => {
 const handleDownload = async (a: LessonAttachment) => {
   downloading.value = a.id
   try {
-    // Baixa via backend (carimba assinatura nome/email/IP + registra DownloadLog).
+    // Backend registra o DownloadLog (IP/email/hora) e redireciona pro MinIO; aqui pegamos os bytes.
     const blob = await courseApi.downloadAttachment(a.id)
-    const blobUrl = URL.createObjectURL(blob)
+    let out: Blob = blob
+    const isPdf = blob.type === 'application/pdf' || a.title.toLowerCase().endsWith('.pdf')
+    if (isPdf) {
+      try {
+        out = new Blob([await stampPdf(await blob.arrayBuffer())], { type: 'application/pdf' })
+      }
+      catch { /* PDF que a lib não abre: baixa o cru */ }
+    }
+    const blobUrl = URL.createObjectURL(out)
     const link = document.createElement('a')
     link.href = blobUrl
     link.download = a.title
