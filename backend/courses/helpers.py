@@ -1,4 +1,6 @@
 import io
+import subprocess
+import tempfile
 from datetime import timedelta
 
 from django.db.models import OuterRef, Q, Subquery, Sum
@@ -92,6 +94,40 @@ def _signature_text(user, ip: str) -> str:
     who = user.name or user.email
     when = timezone.localtime().strftime('%d/%m/%Y %H:%M')
     return f'Baixado por {who} · {user.email} · IP {ip} · {when}'
+
+
+def compress_pdf(data: bytes, setting: str = '/printer') -> bytes:
+    """Downsampla imagens do PDF via ghostscript. /printer = 300dpi: acima disso é desperdício (tela
+    mostra ≤150dpi, impressão usa 300), então não há perda perceptível pro aluno. Encolhe apostila
+    image-heavy ~8x. Devolve o ORIGINAL, sem tocar, se: não for PDF válido, o gs falhar, o resultado
+    não encolher, ou o nº de páginas mudar — nunca troca por um arquivo corrompido/diferente.
+    ponytail: shell-out pro gs (recomprimir imagem em Python seria reinventar). Knob `setting` se um
+    dia quiserem qualidade diferente por curso."""
+    try:
+        n_before = len(PdfReader(io.BytesIO(data)).pages)
+    except Exception:  # noqa: BLE001
+        return data  # não é PDF válido: não mexe
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.pdf') as fin, tempfile.NamedTemporaryFile(suffix='.pdf') as fout:
+            fin.write(data)
+            fin.flush()
+            subprocess.run(
+                ['gs', '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.5', f'-dPDFSETTINGS={setting}',
+                 '-dNOPAUSE', '-dQUIET', '-dBATCH', f'-sOutputFile={fout.name}', fin.name],
+                check=True, timeout=180, capture_output=True,
+            )
+            with open(fout.name, 'rb') as f:
+                out = f.read()
+    except Exception:  # noqa: BLE001
+        return data  # gs ausente/erro/timeout: mantém original
+    if not out or len(out) >= len(data):
+        return data  # não encolheu
+    try:
+        if len(PdfReader(io.BytesIO(out)).pages) != n_before:
+            return data  # nº de páginas divergiu: descarta por segurança
+    except Exception:  # noqa: BLE001
+        return data
+    return out
 
 
 def _stamp_pdf(data: bytes, text: str) -> bytes:

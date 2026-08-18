@@ -7,11 +7,12 @@ from typing import cast
 
 from accounts.models import User, UserManager
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.db import models, transaction
 from django.db.models import Count, Exists, F, OuterRef, Prefetch, Subquery
 from django.db.models.query_utils import Q
 from django.db.utils import IntegrityError
-from django.http import HttpResponseRedirect
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_q.models import Schedule
@@ -30,6 +31,10 @@ from .helpers import (
     _due_form,
     _has_course_access,
     _module_locked,
+    _signature_text,
+    _stamp_image,
+    _stamp_pdf,
+    compress_pdf,
     course_duration_sq,
 )
 from .models import (
@@ -550,22 +555,45 @@ def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
     return Status(200, result)
 
 
+# Teto só p/ IMAGEM: acima disso o re-encode do raster inteiro pesa demais; serve cru. PDF ignora
+# (carimbo de PDF é 1ª/meio/última, custo constante — ver _stamp_pdf).
+STAMP_MAX_BYTES = 15 * 1024 * 1024
+
+
 @catalog_router.get('/attachments/{attachment_id}/download', response={403: Error, 404: Error})
 def download_attachment(request, attachment_id: int):
     att = get_object_or_404(LessonAttachment.objects.select_related('lesson__module'), id=attachment_id)
     if denied := _assert_enrolled_or_403(request, att.lesson):  # acesso + lock de módulo
         return denied
 
+    ip = _client_ip(request)
     # Trilha forense: quem clicou baixar, quando, IP. Snapshot do email sobrevive à edição do user.
-    DownloadLog.objects.create(user=request.auth, attachment=att, email=request.auth.email, ip=_client_ip(request) or None)
+    DownloadLog.objects.create(user=request.auth, attachment=att, email=request.auth.email, ip=ip or None)
 
-    # ponytail: carimbo por-usuário DESLIGADO até a infra melhorar. Proxiar o arquivo pelo backend puxava
-    # tudo do MinIO por WAN (0.6-5 MB/s) e prendia 1 dos 3 workers por 20-30s → download lento + risco de
-    # travar o site. Bucket é public-read (o carimbo já vazava pela URL direta), então redireciona: 1 hop,
-    # stream nativo do MinIO, worker liberado na hora. DownloadLog acima mantém a trilha de quem baixou.
-    # Religar quando MinIO estiver na MESMA LAN + bucket privado: voltar a ler att.file_url e carimbar com
-    # _stamp_pdf/_stamp_image (ainda em courses/helpers.py; ver git deste arquivo p/ o bloco).
-    return HttpResponseRedirect(att.file_url.url)
+    name = Path(att.file_url.name).name
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    text = _signature_text(request.auth, ip)
+    filename = att.title or name
+
+    # Carimbo forense por-usuário na 1ª/meio/última página (PDF) ou faixa no rodapé (imagem). Viável de
+    # novo porque os PDFs entram comprimidos (~2MB) → ler do MinIO + carimbar + enviar é rápido e o worker
+    # fica preso poucos segundos. Falha no carimbo (Pillow recusa a imagem, DecompressionBomb) degrada pro
+    # arquivo cru, nunca vira 500. Marca ainda é bypassável pela URL pública até o bucket virar privado.
+    body = ctype = None
+    if ext == 'pdf' or (ext in ('jpg', 'jpeg', 'png', 'webp') and (att.size_bytes or 0) <= STAMP_MAX_BYTES):
+        try:
+            data = att.file_url.open('rb').read()
+            body, ctype = (_stamp_pdf(data, text), 'application/pdf') if ext == 'pdf' else _stamp_image(data, text)
+        except Exception:  # noqa: BLE001
+            body = None
+
+    if body is None:
+        # não carimbável, imagem grande demais, ou carimbo falhou: stream cru.
+        return FileResponse(att.file_url.open('rb'), as_attachment=True, filename=filename)
+
+    resp = HttpResponse(body, content_type=ctype)
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
 
 
 @catalog_router.get('/banners', response=list[BannerOut])
@@ -1041,13 +1069,16 @@ def upload_attachment(request, lesson_id: int, file: UploadedFile, title: str | 
     current_max = LessonAttachment.objects.filter(lesson=lesson).aggregate(models.Max('order'))['order__max']
     next_order = 0 if current_max is None else current_max + 1
 
-    attachment = LessonAttachment(
-        lesson=lesson,
-        title=title or file.name,
-        size_bytes=file.size,
-        order=next_order,
-    )
-    attachment.file_url.save(new_name, file, save=False)
+    attachment = LessonAttachment(lesson=lesson, title=title or file.name, order=next_order)
+    if ext == '.pdf':
+        # Comprime na entrada (gs /printer): apostila image-heavy encolhe ~8x sem perda perceptível.
+        # compress_pdf devolve o original se o gs falhar/não encolher, então nunca piora.
+        blob = compress_pdf(file.read())
+        attachment.size_bytes = len(blob)
+        attachment.file_url.save(new_name, ContentFile(blob), save=False)
+    else:
+        attachment.size_bytes = file.size
+        attachment.file_url.save(new_name, file, save=False)
     attachment.save()
     return Status(201, attachment)
 
