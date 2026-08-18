@@ -553,7 +553,8 @@ def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
     return Status(200, result)
 
 
-# Acima disso o carimbo (arquivo inteiro na RAM + reescrita) arrisca estourar o worker; serve cru.
+# Teto só p/ IMAGEM: acima disso o re-encode do raster inteiro pesa demais; serve cru. PDF ignora
+# (carimbo de PDF é custo constante, ver _stamp_pdf).
 STAMP_MAX_BYTES = 15 * 1024 * 1024
 
 
@@ -572,13 +573,12 @@ def download_attachment(request, attachment_id: int):
 
     filename = att.title or name
     body = ctype = None
-    # ponytail: carimbo carrega o arquivo INTEIRO na RAM e reescreve (reportlab/pypdf). Arquivo grande
-    # passa dos 30s do worker (gunicorn sem --timeout) → conexão dropa → spinner eterno no front.
-    # Acima de STAMP_MAX_BYTES pula o carimbo e faz stream cru (FileResponse, sem RAM). Falha no carimbo
-    # (Pillow recusa a imagem, DecompressionBomb) também degrada, nunca vira 500. DownloadLog já guarda
-    # a trilha. Subir o teto = carimbar grande em background (django-q) e servir o carimbado depois.
-    stampable = ext == 'pdf' or ext in ('jpg', 'jpeg', 'png', 'webp')
-    if stampable and (att.size_bytes or 0) <= STAMP_MAX_BYTES:
+    # PDF: carimbo agora é custo constante (1ª/meio/última página, ver _stamp_pdf) → sempre roda.
+    # Imagem: re-encoda o raster INTEIRO na RAM, então acima de STAMP_MAX_BYTES serve cru pra não pesar.
+    # Falha no carimbo (Pillow recusa a imagem, DecompressionBomb) degrada pro arquivo cru, nunca vira
+    # 500. DownloadLog já guarda a trilha de quem baixou.
+    is_img = ext in ('jpg', 'jpeg', 'png', 'webp')
+    if ext == 'pdf' or (is_img and (att.size_bytes or 0) <= STAMP_MAX_BYTES):
         try:
             data = att.file_url.open('rb').read()
             body, ctype = (_stamp_pdf(data, text), 'application/pdf') if ext == 'pdf' else _stamp_image(data, text)
@@ -586,7 +586,7 @@ def download_attachment(request, attachment_id: int):
             body = None
 
     if body is None:
-        # não carimbável, grande demais, ou carimbo falhou: stream cru.
+        # não carimbável, imagem grande demais, ou carimbo falhou: stream cru.
         return FileResponse(att.file_url.open('rb'), as_attachment=True, filename=filename)
 
     resp = HttpResponse(body, content_type=ctype)

@@ -95,20 +95,28 @@ def _signature_text(user, ip: str) -> str:
 
 
 def _stamp_pdf(data: bytes, text: str) -> bytes:
-    """Carimba o texto no rodapé de cada página. reportlab gera o overlay, pypdf faz o merge."""
+    """Carimba a assinatura no rodapé da 1ª, do meio e da última página. reportlab gera o overlay,
+    pypdf faz o merge.
+    ponytail: carimbar TODA página faz merge_page por página e trava em apostila cheia de imagem
+    (era o download que 'demorava bastante'). Escrever todas as páginas é barato; o custo é o merge.
+    3 páginas = custo constante e a marca aparece no começo/meio/fim; DownloadLog guarda a trilha
+    completa de quem baixou. Se exigirem marca em TODA página, isso é por-página e lento → job (django-q)."""
     try:
         reader = PdfReader(io.BytesIO(data))
         writer = PdfWriter()
-        for page in reader.pages:
-            w, h = float(page.mediabox.width), float(page.mediabox.height)
-            buf = io.BytesIO()
-            c = canvas.Canvas(buf, pagesize=(w, h))
-            c.setFont('Helvetica', 7)
-            c.setFillColorRGB(0.45, 0.45, 0.45)
-            c.drawString(18, 10, text)
-            c.save()
-            buf.seek(0)
-            page.merge_page(PdfReader(buf).pages[0])
+        n = len(reader.pages)
+        mark = {0, n // 2, n - 1}  # 1ª, meio, última (dedup p/ PDF de 1-2 páginas)
+        for i, page in enumerate(reader.pages):
+            if i in mark:
+                w, h = float(page.mediabox.width), float(page.mediabox.height)
+                buf = io.BytesIO()
+                c = canvas.Canvas(buf, pagesize=(w, h))
+                c.setFont('Helvetica', 7)
+                c.setFillColorRGB(0.45, 0.45, 0.45)
+                c.drawString(18, 10, text)
+                c.save()
+                buf.seek(0)
+                page.merge_page(PdfReader(buf).pages[0])
             writer.add_page(page)
         out = io.BytesIO()
         writer.write(out)
