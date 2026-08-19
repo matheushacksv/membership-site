@@ -29,7 +29,7 @@ desafio.henriquegoularte.com.br {
 
     @backend path /v1/api/* /admin/* /static/*
     handle @backend {
-        reverse_proxy desafio-backend:8000
+        reverse_proxy lps-backend:8000
     }
 
     handle {
