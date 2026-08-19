@@ -33,9 +33,7 @@ desafio.henriquegoularte.com.br {
     }
 
     handle {
-        root * /var/www/desafio
-        try_files {path} {path}/ /index.html
-        file_server
+        redir * https://grupoenriquecedor.com.br/desafio/ permanent
     }
 }
 

@@ -69,7 +69,6 @@ services:
       - caddy_data:/data
       - caddy_config:/config
       - static_data:/var/www/static:ro
-      - /opt/lp-desafio/www:/var/www/desafio:ro
     depends_on: [backend, frontend]
 
 volumes:
