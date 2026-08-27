@@ -118,7 +118,7 @@ def send_external_access_email(user_id: int, course_names: list[str] | None = No
     """Notifica um usuário JÁ EXISTENTE que foi matriculado via external_enroll (CRM).
 
     Um único email cobrindo todos os cursos da chamada (não 1 por curso). Usuário novo
-    NÃO usa isto — recebe o email padrão de definir senha. fail_silently: best-effort.
+    NÃO usa isto, recebe o email padrão de definir senha. fail_silently: best-effort.
     """
     try:
         user = User.objects.get(id=user_id)
@@ -176,7 +176,7 @@ def send_password_changed_email(user_id: int):
 
     É a rede de segurança do login por magic link: quem recebe o link define senha sem
     saber a antiga, então uma troca indevida (link reencaminhado, número de WhatsApp
-    errado/reciclado) precisa chegar ao email — que o usuário NÃO consegue alterar
+    errado/reciclado) precisa chegar ao email, que o usuário NÃO consegue alterar
     sozinho, logo continua sendo o canal do dono. O link do botão é gerado depois da
     troca, com o hash novo, e derruba a senha do invasor quando usado."""
     try:
@@ -199,12 +199,12 @@ def send_password_changed_email(user_id: int):
         f'<p>Olá {name},</p>'
         f'<p>A senha da sua conta foi alterada em <strong>{when}</strong>.</p>'
         '<p>Se foi você, não precisa fazer nada.</p>'
-        '<p><strong>Se não foi você</strong>, clique no botão abaixo para definir uma nova senha — '
-        'isso invalida a senha que acabou de ser criada.</p>'
+        '<p><strong>Se não foi você</strong>, clique no botão abaixo para definir uma nova senha. '
+        'Isso invalida a senha que acabou de ser criada.</p>'
     )
     build_branded_email(
         'Sua senha foi alterada - Grupo Enriquecedor', [user.email], text=text, content_html=content,
-        cta_label='Não fui eu — redefinir senha', cta_url=recover_url,
+        cta_label='Não fui eu, redefinir senha', cta_url=recover_url,
     ).send(fail_silently=True)
 
 
@@ -230,7 +230,7 @@ def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: boo
     errors: list[str] = []
     new_user_ids: list[int] = []
 
-    # {course_id: access_days} — precisa do access_days pra computar a expiração;
+    # {course_id: access_days}: precisa do access_days pra computar a expiração;
     # sem isso a matrícula entra vitalícia ignorando a janela de acesso do curso.
     courses_map = dict(
         Course.objects.filter(id__in=course_ids).values_list('id', 'access_days')
@@ -273,7 +273,7 @@ def bulk_import_task(users: list[dict], course_ids: list[int], send_welcome: boo
             errors.append(f'{email}: {e}')
 
     # Boas-vindas em LOTES (1 conexão SMTP + pacing por lote), em vez de 1 task/login
-    # por aluno — evita a rajada de logins/volume que bloqueia o provedor de email.
+    # por aluno, evita a rajada de logins/volume que bloqueia o provedor de email.
     batch_size = settings.EMAIL_BATCH_SIZE
     for i in range(0, len(new_user_ids), batch_size):
         async_task(

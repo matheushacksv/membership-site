@@ -4,7 +4,7 @@ import { FetchError } from 'ofetch'
 import { CheckCircle2, AlertCircle, Loader2, Mail } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Redefinir senha — Grupo Enriquecedor' })
+useHead({ title: 'Redefinir senha | Grupo Enriquecedor' })
 
 const route = useRoute()
 const api = useApi()
@@ -44,7 +44,7 @@ const confirmError = computed(() => {
 const validateLink = async () => {
   if (!uid.value || !token.value) {
     linkValid.value = false
-    linkError.value = 'Link inválido — parâmetros ausentes.'
+    linkError.value = 'Link inválido, parâmetros ausentes.'
     validating.value = false
     return
   }
@@ -155,7 +155,7 @@ const onSubmit = async () => {
           </h1>
         </div>
         <p class="text-sm text-white/60 mb-6">
-          Enviamos um novo link para o seu email. Abra-o para definir sua senha — ele vale por 24h.
+          Enviamos um novo link para o seu email. Abra-o para definir sua senha. Ele vale por 24h.
         </p>
         <p class="text-xs text-neutral-500 mb-6">
           Não chegou? Confira a caixa de spam ou aguarde alguns minutos.

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { AlertCircle, Loader2 } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Entrando — Grupo Enriquecedor' })
+useHead({ title: 'Entrando | Grupo Enriquecedor' })
 
 const route = useRoute()
 const api = useApi()
@@ -16,7 +16,7 @@ const error = ref<string | null>(null)
 // pra escrita de cookie + navegação rodarem no browser, não no SSR.
 onMounted(async () => {
   if (!token) {
-    error.value = 'Link inválido — token ausente.'
+    error.value = 'Link inválido, token ausente.'
     return
   }
   try {

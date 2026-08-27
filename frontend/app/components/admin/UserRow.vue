@@ -85,14 +85,15 @@ const generateLink = async () => {
   linking.value = true
   try {
     const { url } = await admin.generateLoginLink(props.user.id)
-    // Aviso vai junto no clipboard, depois do link (WhatsApp corta o auto-link no
-    // espaço, então o link tem que vir primeiro). Serve pros dois leitores: lembra o
-    // admin de não colar em grupo e avisa o aluno de não encaminhar — hoje o link
-    // entra na conta E abre a troca de senha, então repassá-lo é entregar a conta.
+    // Aviso ANTES do link: colado em campo que colapsa quebra de linha (CRM, nota),
+    // texto depois da URL gruda no token e invalida o link. Com o link por último
+    // nada pode ser anexado nele. Serve pros dois leitores: lembra o admin de não
+    // colar em grupo e avisa o aluno de não encaminhar. Hoje o link entra na conta
+    // E abre a troca de senha, então repassá-lo é entregar a conta.
     const text =
-      `${url}\n\n` +
       '⚠️ Link pessoal e intransferível: vale 2 horas, entra direto na conta e ' +
-      'permite definir uma nova senha. Não encaminhe para ninguém.'
+      'permite definir uma nova senha. Não encaminhe para ninguém.\n\n' +
+      url
     try {
       await navigator.clipboard.writeText(text)
       toast.success('Link + aviso copiados (válido 2h)')
@@ -165,7 +166,7 @@ defineExpose({ load })
       </div>
 
       <div class="flex-1 min-w-0">
-        <p class="text-sm text-white truncate">{{ user.name || '—' }}</p>
+        <p class="text-sm text-white truncate">{{ user.name || '-' }}</p>
         <p class="text-xs text-neutral-500 truncate">{{ user.email }}</p>
       </div>
 

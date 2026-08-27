@@ -63,7 +63,7 @@ router = Router(tags=['Users'])
 
 def build_magic_login_url(user: User) -> str:
     """URL de login automático (2h). Reusada pelo endpoint staff e pela task de
-    WhatsApp (integrations.tasks.send_whatsapp_access). Stateless — nada no banco.
+    WhatsApp (integrations.tasks.send_whatsapp_access). Stateless, nada no banco.
 
     Token vai URL-encodado: signing.dumps usa ':' como separador, e o WhatsApp corta
     o auto-link nesse ':'. quote() encoda o ':' (→ %3A); browser/Vue Router decodam de
@@ -204,7 +204,7 @@ def magic_login(request, data: MagicLoginIn):
         return Status(401, Error(detail='Link inválido ou expirado'))
 
     # Junto do JWT vai um par uid/token de reset: quem abriu o link provou posse do
-    # canal (email/WhatsApp) — a mesma prova que o fluxo de "esqueci a senha" exige.
+    # canal (email/WhatsApp), a mesma prova que o fluxo de "esqueci a senha" exige.
     # Com isso o frontend leva direto pra tela de nova senha, sem pedir a senha antiga.
     # Janela curta (link vale 2h) limita o estrago de um link reencaminhado.
     refresh = RefreshToken.for_user(user)
@@ -332,7 +332,7 @@ def resend_welcome(request, user_id: int):
 @router.post('/admin/users/{user_id}/login-link', response={200: MagicLinkOut, 404: Error})
 def generate_login_link(request, user_id: int):
     # Gera link de login automático (2h). Endpoint reutilizável: admin copia agora,
-    # integração WhatsApp chama depois. Stateless — nada gravado no banco.
+    # integração WhatsApp chama depois. Stateless, nada gravado no banco.
     staff_required(request)
     user = get_object_or_404(User, id=user_id)
 
