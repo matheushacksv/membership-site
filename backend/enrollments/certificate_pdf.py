@@ -1,7 +1,7 @@
 """Geração do PDF do certificado, on-demand a partir da linha Certificate.
 
 reportlab desenha direto os bytes (mesmo idiom de courses.helpers._stamp_pdf). Sem storage:
-o PDF nunca é gravado — regerar é mais barato que gerir arquivo + LGPD do bucket público.
+o PDF nunca é gravado, regerar é mais barato que gerir arquivo + LGPD do bucket público.
 """
 
 import io
@@ -31,7 +31,7 @@ def course_hours(course) -> int | None:
     soma da duração das aulas publicadas arredondada pra hora. 0 → None (omite a linha).
 
     Vídeo conta `duration_seconds`; exercício conta `time_limit_seconds` (a duração dele é o
-    tempo da prova — exercício sem tempo contribui 0, sem inflar carga horária)."""
+    tempo da prova, exercício sem tempo contribui 0, sem inflar carga horária)."""
     if course.certificate_hours:
         return course.certificate_hours
     secs = (
@@ -105,7 +105,7 @@ def render_certificate_pdf(cert) -> bytes:
         size = 30 * mm
         c.drawImage(logo, cx - size / 2, h - 52 * mm, width=size, height=size,
                     preserveAspectRatio=True, mask='auto')
-    except Exception:  # noqa: BLE001 — sem logo não pode quebrar a emissão
+    except Exception:  # noqa: BLE001 (sem logo não pode quebrar a emissão)
         pass
 
     # título
@@ -155,7 +155,7 @@ def render_certificate_pdf(cert) -> bytes:
             sig = ImageReader(io.BytesIO(sig_bytes))
             c.drawImage(sig, cx - 22 * mm, sign_y + 1 * mm, width=44 * mm, height=16 * mm,
                         preserveAspectRatio=True, mask='auto')
-        except Exception:  # noqa: BLE001 — assinatura inválida não pode quebrar a emissão
+        except Exception:  # noqa: BLE001 (assinatura inválida não pode quebrar a emissão)
             pass
 
     c.setStrokeColorRGB(*_DARK)
@@ -174,7 +174,7 @@ def render_certificate_pdf(cert) -> bytes:
     verify_url = f'{settings.FRONTEND_URL.rstrip("/")}/verificar/{cert.code}'
     try:
         _draw_qr(c, verify_url, w - 34 * mm, 16 * mm, 18 * mm)
-    except Exception:  # noqa: BLE001 — QR não pode quebrar a emissão
+    except Exception:  # noqa: BLE001 (QR não pode quebrar a emissão)
         pass
 
     # rodapé: emissor + código + link de verificação

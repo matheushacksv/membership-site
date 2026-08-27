@@ -48,7 +48,7 @@ def _quiz_webhook_payload(lesson, user, result, answers, *, timed_out=False, att
 def _apply_timeout(lesson, user, attempt, answers=None):
     """Finaliza uma tentativa vencida como FALHA (timeout). Atômico e idempotente: só a
     1ª via que "fechar" a tentativa (task ONCE, GET preguiçoso ou submit no limite)
-    grava e dispara o webhook — as demais viram no-op pela guarda `submitted_at__isnull`.
+    grava e dispara o webhook, as demais viram no-op pela guarda `submitted_at__isnull`.
     ponytail: corrida no exato limite é limitada pela GRACE do submit; empate resolve aqui."""
     from .api import _quiz_result  # lazy: evita ciclo tasks<->api
 
@@ -85,7 +85,7 @@ def _apply_timeout(lesson, user, attempt, answers=None):
 
 def finalize_quiz_timeout(lesson_id, user_id, started_at_iso) -> None:
     """django-q ONCE agendada no vencimento. Marca falha por timeout se a tentativa
-    ainda estiver aberta e for a mesma (mesmo `started_at`). Senão no-op — cobre o caso
+    ainda estiver aberta e for a mesma (mesmo `started_at`). Senão no-op, cobre o caso
     "aluno fechou a aba e não voltou". A agenda ONCE se auto-remove após rodar."""
     attempt = (
         QuizAttempt.objects.select_related('user', 'lesson__module__course')
@@ -113,7 +113,7 @@ def fire_quiz_webhook(url: str, payload: dict, secret: str = '') -> None:
 
 def _sample_quiz_payload() -> dict:
     """Payload fictício com o MESMO formato de _quiz_webhook_payload, p/ o botão de teste.
-    ponytail: dict estático — manter em sincronia manual com _quiz_webhook_payload se o
+    ponytail: dict estático, manter em sincronia manual com _quiz_webhook_payload se o
     shape mudar. Check em courses.tests garante que não diverge nas chaves de topo."""
     return {
         'event': 'quiz_completed',
@@ -137,7 +137,7 @@ def _sample_quiz_payload() -> dict:
 
 def check_quiz_webhook(url: str) -> dict:
     """Dispara o payload de teste sincronamente e reporta. Reusa fire_quiz_webhook.
-    ponytail: síncrono (bloqueia o worker até timeout=10s) — é um clique manual, ok."""
+    ponytail: síncrono (bloqueia o worker até timeout=10s), é um clique manual, ok."""
     try:
         fire_quiz_webhook(url, _sample_quiz_payload(), settings.QUIZ_WEBHOOK_SECRET)
     except urllib.error.HTTPError as e:

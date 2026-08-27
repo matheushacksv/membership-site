@@ -3,7 +3,7 @@ import { Loader2, Plug, MessageCircle, Video } from 'lucide-vue-next'
 import type { EvolutionConfig, PandaConfig } from '~/composables/useAdmin'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
-useHead({ title: 'Integrações — Admin' })
+useHead({ title: 'Integrações | Admin' })
 
 const admin = useAdmin()
 const toast = useToast()
@@ -36,7 +36,7 @@ const save = async () => {
   }
 }
 
-// Panda Video — duração automática das aulas (carga horária dos certificados)
+// Panda Video: duração automática das aulas (carga horária dos certificados)
 const panda = reactive<PandaConfig>({
   base_url: 'https://api-v2.pandavideo.com.br',
   api_key: '',
@@ -98,7 +98,7 @@ const runBackfill = async () => {
     >
       <div class="flex items-center gap-2.5 mb-1">
         <MessageCircle class="w-4 h-4 text-emerald-400" />
-        <h2 class="text-base font-medium text-white">WhatsApp — Evolution API</h2>
+        <h2 class="text-base font-medium text-white">WhatsApp: Evolution API</h2>
       </div>
       <p class="text-xs text-neutral-500 mb-6">
         Ao criar um aluno com telefone, envia uma mensagem de acesso com link de login
@@ -140,7 +140,7 @@ const runBackfill = async () => {
         <label class="flex items-center gap-3 cursor-pointer select-none">
           <input v-model="form.is_active" type="checkbox" class="accent-orange-500 w-4 h-4">
           <span class="text-sm text-white">Ativo</span>
-          <span class="text-xs text-neutral-500">— envia WhatsApp aos novos alunos com telefone</span>
+          <span class="text-xs text-neutral-500">envia WhatsApp aos novos alunos com telefone</span>
         </label>
 
         <div class="flex justify-end pt-2 border-t border-white/5">
@@ -156,18 +156,18 @@ const runBackfill = async () => {
       </form>
     </section>
 
-    <!-- Panda Video — duração automática -->
+    <!-- Panda Video, duração automática -->
     <section
       v-if="!pendingPanda"
       class="mt-6 bg-white/[0.02] border border-white/10 rounded-xl p-6 md:p-8"
     >
       <div class="flex items-center gap-2.5 mb-1">
         <Video class="w-4 h-4 text-sky-400" />
-        <h2 class="text-base font-medium text-white">Panda Video — duração automática</h2>
+        <h2 class="text-base font-medium text-white">Panda Video: duração automática</h2>
       </div>
       <p class="text-xs text-neutral-500 mb-6">
         Ao salvar uma aula com vídeo do Panda, busca a duração e preenche a carga horária
-        sozinho — base do cálculo automático dos certificados. Sem isso, a carga horária
+        sozinho, base do cálculo automático dos certificados. Sem isso, a carga horária
         precisa ser informada à mão no curso.
       </p>
 
@@ -196,7 +196,7 @@ const runBackfill = async () => {
         <label class="flex items-center gap-3 cursor-pointer select-none">
           <input v-model="panda.is_active" type="checkbox" class="accent-orange-500 w-4 h-4">
           <span class="text-sm text-white">Ativo</span>
-          <span class="text-xs text-neutral-500">— busca a duração dos vídeos do Panda</span>
+          <span class="text-xs text-neutral-500">busca a duração dos vídeos do Panda</span>
         </label>
 
         <div class="flex items-center justify-between gap-3 pt-2 border-t border-white/5">

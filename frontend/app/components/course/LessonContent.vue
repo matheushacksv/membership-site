@@ -4,7 +4,7 @@ import DOMPurify from 'isomorphic-dompurify'
 const props = defineProps<{ content: string | null }>()
 
 // Permite explicitamente <mark> (grifo) e style inline (cor) do editor.
-// DOMPurify sanitiza o CSS — só props seguras como color/background-color passam.
+// DOMPurify sanitiza o CSS: só props seguras como color/background-color passam.
 const safeHtml = computed(() =>
   props.content
     ? DOMPurify.sanitize(props.content, {

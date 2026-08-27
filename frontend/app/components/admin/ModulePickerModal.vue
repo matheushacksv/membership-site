@@ -23,7 +23,7 @@ const load = async () => {
   }
 }
 
-// Busca no servidor (nome do módulo ou do curso) com debounce — lista pode ser grande.
+// Busca no servidor (nome do módulo ou do curso) com debounce, lista pode ser grande.
 let timer: ReturnType<typeof setTimeout> | null = null
 watch(q, () => {
   if (timer) clearTimeout(timer)
@@ -53,7 +53,7 @@ const submit = () => {
   <AdminModal :open="open" title="Importar módulo de outro curso" size="md" @close="emit('close')">
     <div class="space-y-4">
       <p class="text-xs text-neutral-500">
-        Copia o módulo (aulas + anexos) pra este curso. Cópia independente — editar o original depois não altera aqui. Entra despublicado.
+        Copia o módulo (aulas + anexos) pra este curso. Cópia independente, editar o original depois não altera aqui. Entra despublicado.
       </p>
 
       <div class="relative">

@@ -35,7 +35,7 @@ if (!course.value) {
   await navigateTo('/admin/courses')
 }
 
-useHead({ title: () => `Editar ${course.value?.name || ''} — Admin` })
+useHead({ title: () => `Editar ${course.value?.name || ''} | Admin` })
 
 const form = reactive<CourseInput>({
   name: course.value?.name || '',
@@ -240,7 +240,7 @@ const onImportModule = async (moduleId: number) => {
   try {
     await admin.copyModule(moduleId, courseId)
     await loadModules()
-    toast.success('Módulo importado (despublicado — revise e publique)')
+    toast.success('Módulo importado (despublicado, revise e publique)')
   } catch (e: any) {
     toast.error(e?.data?.detail || 'Falha ao importar módulo')
   }
@@ -414,7 +414,7 @@ const savedLabel = computed(() => {
                 placeholder="curso-gratis"
                 class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none font-mono"
               >
-              <p class="text-[11px] text-neutral-500 mt-1">Só letras, números e hífen — gera a URL pública abaixo.</p>
+              <p class="text-[11px] text-neutral-500 mt-1">Só letras, números e hífen: gera a URL pública abaixo.</p>
             </div>
 
             <div v-if="lpUrl">

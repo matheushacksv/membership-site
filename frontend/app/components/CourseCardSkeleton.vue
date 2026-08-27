@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Skeleton estático que espelha CourseCard — mesma grid/aspect pra evitar layout shift.
+// Skeleton estático que espelha CourseCard: mesma grid/aspect pra evitar layout shift.
 </script>
 
 <template>

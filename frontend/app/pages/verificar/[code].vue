@@ -16,7 +16,7 @@ const route = useRoute()
 const api = useApi()
 const code = String(route.params.code || '')
 
-useHead({ title: 'Verificação de certificado — Grupo Enriquecedor' })
+useHead({ title: 'Verificação de certificado | Grupo Enriquecedor' })
 
 const { data: cert, error } = await useAsyncData(`verify-${code}`, () =>
   api<VerifyOut>(`/enrollments/verify/${encodeURIComponent(code)}`),

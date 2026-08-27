@@ -94,7 +94,7 @@ def _mask_cpf(digits: str) -> str:
 
 
 class CertificateVerifyOut(Schema):
-    """Payload PÚBLICO da verificação — sem CPF completo (LGPD)."""
+    """Payload PÚBLICO da verificação, sem CPF completo (LGPD)."""
 
     code: str
     student_name: str

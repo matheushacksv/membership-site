@@ -13,7 +13,7 @@ from .schemas import MessageIn, StatusIn, TicketDetailOut, TicketMessageOut, Tic
 
 router = Router(tags=['Tickets'])
 
-# Anexo de suporte (print do bug, comprovante). Público no MinIO — ok, sem valor forense.
+# Anexo de suporte (print do bug, comprovante). Público no MinIO, ok, sem valor forense.
 _ALLOWED_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'application/pdf'}
 
 
@@ -75,7 +75,7 @@ def add_message(request, ticket_id: int, body: Form[str], file: UploadedFile | N
     is_staff = request.auth.is_staff
     if ticket.user_id != request.auth.id and not is_staff:
         return Status(403, Error(detail='Sem acesso a este chamado'))
-    # RESOLVED é terminal: não reabre por resposta — abre-se um novo chamado.
+    # RESOLVED é terminal: não reabre por resposta: abre-se um novo chamado.
     if ticket.status == Ticket.Status.RESOLVED:
         return Status(400, Error(detail='Chamado finalizado. Abra um novo chamado.'))
     body = (body or '').strip()
@@ -135,7 +135,7 @@ def admin_set_status(request, ticket_id: int, data: StatusIn):
     if data.status not in Ticket.Status.values:
         return Status(400, Error(detail='Status inválido'))
     ticket = get_object_or_404(Ticket, id=ticket_id)
-    # ponytail: RESOLVED é terminal — nem staff reabre. Override manual = mudar no dj-admin.
+    # ponytail: RESOLVED é terminal, nem staff reabre. Override manual = mudar no dj-admin.
     if ticket.status == Ticket.Status.RESOLVED and data.status != Ticket.Status.RESOLVED:
         return Status(400, Error(detail='Chamado finalizado não pode ser reaberto'))
     ticket.status = data.status

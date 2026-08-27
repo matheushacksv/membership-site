@@ -54,7 +54,7 @@ const embedUrl = computed(() => {
   if (!props.provider || !props.videoId) return null
   const raw = props.videoId.trim()
 
-  // Panda: subdomain varies per tenant — use full URL if provided
+  // Panda: subdomain varies per tenant: use full URL if provided
   if (props.provider === 'panda') {
     if (/^https?:\/\//.test(raw)) return raw
     return null

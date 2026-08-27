@@ -16,7 +16,7 @@ from .api import (
 from .models import Ticket
 from .schemas import StatusIn, TicketMessageOut
 
-# Uploads em memória — nunca toca o MinIO nos testes.
+# Uploads em memória: nunca toca o MinIO nos testes.
 MEM_STORAGE = {
     'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
     'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},

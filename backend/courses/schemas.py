@@ -155,7 +155,7 @@ class ModuleLibraryOut(Schema):
     id: int
     name: str
     course_name: str
-    lesson_count: int  # via annotate(Count('lessons')) — sem resolver
+    lesson_count: int  # via annotate(Count('lessons')), sem resolver
 
     @staticmethod
     def resolve_course_name(obj) -> str:
@@ -333,7 +333,7 @@ class CommentOut(Schema):
 
 
 class AdminCommentAuthorOut(Schema):
-    """Igual ao CommentAuthorOut mas com email — só pro admin (nunca exposto ao aluno)."""
+    """Igual ao CommentAuthorOut mas com email, só pro admin (nunca exposto ao aluno)."""
 
     id: int
     name: str | None
@@ -464,7 +464,7 @@ class QuizQuestionOut(Schema):
 
 
 class QuizQuestionIn(Schema):
-    """Pergunta completa — só trafega em rota staff."""
+    """Pergunta completa, só trafega em rota staff."""
 
     key: str = ''
     prompt: str

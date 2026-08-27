@@ -4,7 +4,7 @@ import { Award, Camera, Download, Loader2 } from 'lucide-vue-next'
 import { saveBlob, useCertificates, type Certificate } from '~/composables/useCertificates'
 
 definePageMeta({ layout: 'default' })
-useHead({ title: 'Perfil — Grupo Enriquecedor' })
+useHead({ title: 'Perfil | Grupo Enriquecedor' })
 
 const { data: me, refresh } = useMe()
 const { update, uploadAvatar } = useProfile()

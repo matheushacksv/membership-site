@@ -7,7 +7,7 @@ from django.core.mail import EmailMultiAlternatives
 
 # Template de email compartilhado por todas as mensagens (accounts, announcements...).
 # Layout table-based + estilos inline: é o que os clientes de email (Gmail, Outlook)
-# renderizam de forma confiável — <style>/<head> e SVG são frequentemente removidos.
+# renderizam de forma confiável, <style>/<head> e SVG são frequentemente removidos.
 BRAND_COLOR = '#265F34'  # verde do logo
 
 # Logo embutido via CID (anexo inline), NÃO por URL externa: URL depende de host público
@@ -33,7 +33,7 @@ def render_email(content_html: str, cta_label: str | None = None, cta_url: str |
 
     content_html: parágrafos já formatados (<p>...</p>, <img>, etc).
     cta_label/cta_url: se ambos vierem, renderiza um botão destacado (ex.: "Acessar a plataforma").
-    O logo é referenciado por cid:brandlogo — use build_branded_email() para anexá-lo.
+    O logo é referenciado por cid:brandlogo, use build_branded_email() para anexá-lo.
     """
     site = getattr(settings, 'SITE_NAME', 'Grupo Enriquecedor')
 

@@ -4,7 +4,7 @@ import { Award, Eraser, Loader2, Pencil, Trash2, Upload } from 'lucide-vue-next'
 import type { CertificateConfig } from '~/composables/useAdmin'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
-useHead({ title: 'Certificado — Admin' })
+useHead({ title: 'Certificado | Admin' })
 
 const admin = useAdmin()
 const toast = useToast()

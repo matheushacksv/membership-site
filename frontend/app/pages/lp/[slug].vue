@@ -28,7 +28,7 @@ const { data: course } = await useAsyncData(`lp-${slug}`, () =>
 
 const isCloser = computed(() => course.value?.lp_template === 'closer')
 
-useHead({ title: () => (course.value ? `${course.value.name} — Acesso gratuito` : 'Curso não encontrado') })
+useHead({ title: () => (course.value ? `${course.value.name} | Acesso gratuito` : 'Curso não encontrado') })
 
 const name = ref('')
 const email = ref('')
@@ -49,7 +49,7 @@ const onSubmit = async () => {
       setSession({ access: res.access, refresh: res.refresh })
       await navigateTo(`/courses/${res.course_id}`)
     } else {
-      // Email já cadastrado: não logamos por segurança — acesso vai pelos canais dele.
+      // Email já cadastrado: não logamos por segurança: acesso vai pelos canais dele.
       sent.value = true
     }
   } catch (e: any) {

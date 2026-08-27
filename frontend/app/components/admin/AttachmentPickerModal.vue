@@ -23,7 +23,7 @@ const load = async () => {
   }
 }
 
-// Busca no servidor (`title__icontains`) com debounce — a lista pode ter centenas
+// Busca no servidor (`title__icontains`) com debounce, a lista pode ter centenas
 // de anexos, não dá pra filtrar tudo no cliente.
 let timer: ReturnType<typeof setTimeout> | null = null
 watch(q, () => {

@@ -28,7 +28,7 @@ dependencies = [
 line-length = 150
 
 [tool.ruff.lint]
-# RUF012 "mutable default" é falso-positivo neste projeto: os alvos são idioms seguros —
+# RUF012 "mutable default" é falso-positivo neste projeto: os alvos são idioms seguros,
 # ninja Schema (pydantic copia o default por instância) e Django (Meta.indexes/constraints,
 # dependencies/operations de migration, admin.inlines). Reescrever com default_factory seria
 # churn sem mudança de comportamento.

@@ -78,7 +78,7 @@ const onPick = (e: Event) => {
         <p class="text-xs text-neutral-400 text-center px-4">
           {{ currentUrl ? 'Trocar imagem' : 'Arraste ou clique pra enviar' }}
         </p>
-        <p class="text-[10px] text-neutral-600">JPEG/PNG/WebP — máx 5MB</p>
+        <p class="text-[10px] text-neutral-600">JPEG/PNG/WebP: máx 5MB</p>
       </template>
     </div>
     <input

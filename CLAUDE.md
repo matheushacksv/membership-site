@@ -51,14 +51,14 @@ Frontend `.env`: `NUXT_PUBLIC_API_BASE` (e.g. `http://localhost:8000/api`).
 
 ## Architecture
 
-Single Django project `core/` with feature apps as siblings: `accounts`, `courses`, `enrollments`, `integrations`. API surface is **django-ninja**, not DRF — keep that in mind when adding endpoints.
+Single Django project `core/` with feature apps as siblings: `accounts`, `courses`, `enrollments`, `integrations`. API surface is **django-ninja**, not DRF, keep that in mind when adding endpoints.
 
 ### API wiring
 
-- `core/api.py` instantiates a single `NinjaAPI(auth=JWTAuth())` — **every route is JWT-authenticated by default**. Public endpoints (register/login/refresh, webhooks, password reset) must opt out with `auth=None` on the decorator.
+- `core/api.py` instantiates a single `NinjaAPI(auth=JWTAuth())`, **every route is JWT-authenticated by default**. Public endpoints (register/login/refresh, webhooks, password reset) must opt out with `auth=None` on the decorator.
 - Per-app routers live in `<app>/api.py` and are mounted via `api.add_router("/<prefix>", router)` in `core/api.py`. Currently mounted: `/auth`, `/catalog`, `/admin`, `/enrollments`, `/integrations`.
 - To add a new app to the API, create `<app>/api.py` with a `Router(tags=[...])` and register it.
-- `core/urls.py` only exposes `/dj-admin/` (Django admin — moved off `/admin/` so the Nuxt SPA admin can own `/admin/*` behind Caddy) and `/api/` — no DRF urls, no app-level `urls.py`.
+- `core/urls.py` only exposes `/dj-admin/` (Django admin, moved off `/admin/` so the Nuxt SPA admin can own `/admin/*` behind Caddy) and `/api/`, no DRF urls, no app-level `urls.py`.
 - Pydantic-style request/response shapes live in `<app>/schemas.py`. Shared error shape: `core.utils.errors.Error`.
 - Staff-only endpoints call `core.utils.permissions.staff_required(request)` which raises `HttpError(403)`.
 
@@ -68,20 +68,20 @@ Single Django project `core/` with feature apps as siblings: `accounts`, `course
 - Fields: `email`, `name`, `phone`, `avatar`, `is_staff`, `is_active`.
 - JWT issuance uses `ninja_jwt.tokens.RefreshToken.for_user(user)`. Lifetimes: 30 min access / 7 day refresh (`NINJA_JWT` in `core/settings.py`).
 - Inside a view, the authenticated principal is `request.auth` (a User instance), not `request.user`.
-- Password reset: `urlsafe_base64_encode(force_bytes(user.pk))` + `default_token_generator.make_token(user)`. Frontend route `/reset-password?uid=<>&token=<>`. uid like `NQ` (no padding) is the standard base64url encoding of small ints — not a bug.
+- Password reset: `urlsafe_base64_encode(force_bytes(user.pk))` + `default_token_generator.make_token(user)`. Frontend route `/reset-password?uid=<>&token=<>`. uid like `NQ` (no padding) is the standard base64url encoding of small ints, not a bug.
 
 ### Domain apps
 
 - **accounts**: User model, auth endpoints (`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/me`, `/auth/me/avatar`, password reset flow), staff user management (`/auth/admin/users`, bulk-import, resend-welcome). Async email tasks in `accounts/tasks.py`: `send_welcome_email`, `send_welcome_email_with_reset`.
-  - **Magic login** (passwordless, stateless, no migration): `django.core.signing` token (`salt='magic-login'`, 24h). Staff generates via `POST /auth/admin/users/{id}/login-link` (returns `{url, expires_at}`); public `POST /auth/magic/login` consumes `{token}` and issues a JWT (`RefreshToken.for_user`). Shared builder `build_magic_login_url(user)` (URL-encodes the token — `signing.dumps` uses `:` separators that WhatsApp truncates in auto-links; the browser/Vue Router decode it back before `signing.loads`). Frontend consume page: `/magic?token=<>`. `staff_create_user` accepts optional `phone`.
+  - **Magic login** (passwordless, stateless, no migration): `django.core.signing` token (`salt='magic-login'`, 24h). Staff generates via `POST /auth/admin/users/{id}/login-link` (returns `{url, expires_at}`); public `POST /auth/magic/login` consumes `{token}` and issues a JWT (`RefreshToken.for_user`). Shared builder `build_magic_login_url(user)` (URL-encodes the token, `signing.dumps` uses `:` separators that WhatsApp truncates in auto-links; the browser/Vue Router decode it back before `signing.loads`). Frontend consume page: `/magic?token=<>`. `staff_create_user` accepts optional `phone`.
 - **courses**: `Course` → `Module` → `Lesson` hierarchy + `Attachment` per lesson. `Course` has `kiwify_product_id` (mapping for webhook) and `access_days` (null = vitalício). Catalog endpoints (`/catalog`) and admin CRUD (`/admin/courses`, `/admin/modules`, `/admin/lessons`, attachments, reorder endpoints).
 - **enrollments**: `CourseEnrollment(user, course, is_active, expires_at, source, external_order_id)`. Unique on `(user, course)`. `source` is `'kiwify' | 'admin' | 'manual'`. Endpoints under `/enrollments`.
 - **integrations**: Kiwify webhook at `POST /api/integrations/kiwify/webhook?signature=<token>` (auth=None, query-param token comparison against `KIWIFY_WEBHOOK_TOKEN`). Events: `order_approved` → create user (if new) + enrollment + send welcome/reset email; `order_refunded` / `chargeback` → set enrollment inactive. Staff-only `GET /integrations/kiwify/config` exposes token to the admin UI. External/CRM enroll at `POST /integrations/external/enroll` (auth=None, `X-Token` header vs `WEBHOOK_TOKEN`).
-  - **WhatsApp (Evolution API)**: `EvolutionConfig` singleton model (`base_url`, `instance`, `api_key`, `is_active`; `.load()` / `.ready`) edited via staff `GET`/`PUT /integrations/evolution/config` and the admin **Integrações** page. When a **new** user with a `phone` is created (Kiwify + CRM funnel through `_send_welcome_with_reset`; staff manual create enqueues directly), `integrations.tasks.send_whatsapp_access` fires a best-effort message reinforcing access, embedding the 24h magic-login link. POST via `urllib` to `{base_url}/message/sendText/{instance}` with `apikey` header; `_normalize_number` assumes BR (prefixes DDI `55`). `api_key` is a secret — exposed only through the staff endpoint, never `runtimeConfig.public`.
+  - **WhatsApp (Evolution API)**: `EvolutionConfig` singleton model (`base_url`, `instance`, `api_key`, `is_active`; `.load()` / `.ready`) edited via staff `GET`/`PUT /integrations/evolution/config` and the admin **Integrações** page. When a **new** user with a `phone` is created (Kiwify + CRM funnel through `_send_welcome_with_reset`; staff manual create enqueues directly), `integrations.tasks.send_whatsapp_access` fires a best-effort message reinforcing access, embedding the 24h magic-login link. POST via `urllib` to `{base_url}/message/sendText/{instance}` with `apikey` header; `_normalize_number` assumes BR (prefixes DDI `55`). `api_key` is a secret, exposed only through the staff endpoint, never `runtimeConfig.public`.
 
 ### Frontend layout
 
-- `app/pages/` — file-based routing. Top-level: `index.vue` (student catalog), `course.vue` (course view with sidebar), `profile.vue`, `auth.vue`, `login.vue`, `register.vue`, `forgot-password.vue`, `reset-password.vue`. Admin routes under `app/pages/admin/*`.
+- `app/pages/`: file-based routing. Top-level: `index.vue` (student catalog), `course.vue` (course view with sidebar), `profile.vue`, `auth.vue`, `login.vue`, `register.vue`, `forgot-password.vue`, `reset-password.vue`. Admin routes under `app/pages/admin/*`.
 - `app/middleware/auth.global.ts` enforces auth on all routes except the public ones.
 - `app/middleware/admin.ts` gates admin routes by `is_staff`.
 - `app/composables/useApi.ts` wraps `$fetch` with the JWT, base URL, and refresh-on-401 logic.
@@ -94,6 +94,6 @@ Single Django project `core/` with feature apps as siblings: `accounts`, `course
 
 - Endpoint handlers return `Status(<code>, <schema_instance>)` for non-200 responses; the response map in the decorator must list every status code used (e.g. `response={200: TokenOut, 404: Error, 401: Error}`).
 - Migrations are committed per app under `<app>/migrations/`. Always run `makemigrations <app>` scoped to the app you changed.
-- Multipart uploads on the frontend: build `FormData` and pass as `body` — do NOT set `Content-Type` manually (let the browser set the boundary).
+- Multipart uploads on the frontend: build `FormData` and pass as `body`, do NOT set `Content-Type` manually (let the browser set the boundary).
 - Secrets (`KIWIFY_WEBHOOK_TOKEN`, etc.) must never be exposed via public Nuxt `runtimeConfig.public`. Fetch via staff-authenticated endpoint when the admin UI needs them.
-- When implementing a destructive or external-state-changing webhook handler, always guard with `get_or_create(user=..., course=...)` (both fields) — filtering by one side alone can return multiple rows and raise `MultipleObjectsReturned`.
+- When implementing a destructive or external-state-changing webhook handler, always guard with `get_or_create(user=..., course=...)` (both fields), filtering by one side alone can return multiple rows and raise `MultipleObjectsReturned`.

@@ -41,7 +41,7 @@ export const useTickets = () => {
   return {
     listMine: () => api<TicketListItem[]>('/tickets'),
     get: (id: number) => api<TicketDetail>(`/tickets/${id}`),
-    // create/addMessage são multipart (FormData) — não setar Content-Type (browser põe o boundary).
+    // create/addMessage são multipart (FormData), não setar Content-Type (browser põe o boundary).
     create: (fd: FormData) =>
       api<TicketDetail>('/tickets', { method: 'POST', body: fd }),
     addMessage: (id: number, fd: FormData) =>

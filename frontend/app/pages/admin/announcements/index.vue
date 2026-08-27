@@ -96,7 +96,7 @@ const save = async () => {
 }
 
 const sendEmail = async (a: AnnouncementAdmin) => {
-  // Broadcast é irreversível (não dá pra "desenviar") — confirma antes.
+  // Broadcast é irreversível (não dá pra "desenviar"), confirma antes.
   if (!confirm(`Enviar "${a.title}" por email para TODOS os alunos ativos? Isso não pode ser desfeito.`)) return
   busyId.value = a.id
   try {

@@ -35,10 +35,10 @@ worker (django-q qcluster) consome tarefas: envio de email (welcome, reset).
 
 ### Apps Django
 
-- `accounts` — usuário custom (`AbstractBaseUser`, `email` como `USERNAME_FIELD`), auth JWT, gerenciamento de usuários staff
-- `courses` — `Course` → `Module` → `Lesson` → `Attachment`. Catálogo público + CRUD admin.
-- `enrollments` — `CourseEnrollment(user, course)` com `is_active`, `expires_at`, `source`, `external_order_id`
-- `integrations` — webhook Kiwify (`/api/integrations/kiwify/webhook`) que mapeia `kiwify_product_id` → curso, cria usuário + matrícula em `order_approved`, revoga em `order_refunded`/`chargedback`
+- `accounts`: usuário custom (`AbstractBaseUser`, `email` como `USERNAME_FIELD`), auth JWT, gerenciamento de usuários staff
+- `courses`: `Course` → `Module` → `Lesson` → `Attachment`. Catálogo público + CRUD admin.
+- `enrollments`: `CourseEnrollment(user, course)` com `is_active`, `expires_at`, `source`, `external_order_id`
+- `integrations`: webhook Kiwify (`/api/integrations/kiwify/webhook`) que mapeia `kiwify_product_id` → curso, cria usuário + matrícula em `order_approved`, revoga em `order_refunded`/`chargedback`
 
 ## Pré-requisitos
 
@@ -206,8 +206,8 @@ new_area/
    https://<dominio>/api/integrations/kiwify/webhook?signature=<KIWIFY_WEBHOOK_TOKEN>
    ```
 2. No admin do curso (`/admin/courses/<id>/edit`), preencha:
-   - **Kiwify Product ID** — ID do produto na Kiwify
-   - **Dias de acesso** — opcional, vazio = vitalício
+   - **Kiwify Product ID**, ID do produto na Kiwify
+   - **Dias de acesso**, opcional, vazio = vitalício
 3. Eventos tratados:
    - `order_approved` → cria usuário (se novo), matrícula com `expires_at`, envia email de boas-vindas com link de definir senha
    - `order_refunded` / `chargedback` → desativa matrícula (`is_active=False`)
@@ -222,7 +222,7 @@ new_area/
 
 ## Convenções
 
-- Todo endpoint API herda `JWTAuth()` por padrão — public (`register`, `login`, `refresh`, webhook, reset) opta out com `auth=None`.
+- Todo endpoint API herda `JWTAuth()` por padrão, public (`register`, `login`, `refresh`, webhook, reset) opta out com `auth=None`.
 - Em uma view, principal autenticado é `request.auth` (não `request.user`).
 - Migrations sempre escopadas: `makemigrations <app>`.
 - Multipart upload no frontend: monte `FormData`, não setar `Content-Type` (browser cuida do boundary).

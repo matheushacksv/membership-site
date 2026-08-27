@@ -128,7 +128,7 @@ const onExpire = async () => {
   try {
     await courseApi.submitQuiz(props.lessonId, selected.value, true)
     emit('completed') // timeout ainda conclui a aula
-  } catch { /* silent — servidor já registra a falha via task */ }
+  } catch { /* silent, servidor já registra a falha via task */ }
   selected.value = {}
   attempts.value += 1
   lastTimedOut.value = true
@@ -177,7 +177,7 @@ const retake = () => {
         class="flex items-center justify-center gap-2 text-sm text-red-300"
       >
         <XCircle class="w-4 h-4" />
-        Tempo esgotado — tentativa falha {{ attempts }}.
+        Tempo esgotado, tentativa falha {{ attempts }}.
       </div>
       <div class="flex items-center justify-center gap-2 text-neutral-300">
         <Timer class="w-5 h-5 text-orange-400" />
@@ -231,7 +231,7 @@ const retake = () => {
         <!-- Dissertativa: mostra o que o aluno escreveu (sem certo/errado) -->
         <div v-if="q.type === 'text'" class="rounded-md border border-white/5 bg-white/[0.02] px-3 py-2">
           <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-1">Sua resposta</p>
-          <p class="text-sm text-neutral-200 whitespace-pre-wrap">{{ resultByKey[q.key]?.answer_text || '—' }}</p>
+          <p class="text-sm text-neutral-200 whitespace-pre-wrap">{{ resultByKey[q.key]?.answer_text || '-' }}</p>
         </div>
 
         <!-- Múltipla escolha: pinta escolhida vs correta -->

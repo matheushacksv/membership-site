@@ -3,7 +3,7 @@ import { Plus, Loader2, ImageOff, Eye, EyeOff } from 'lucide-vue-next'
 import type { AdminCourse, CourseInput } from '~/composables/useAdmin'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
-useHead({ title: 'Cursos — Admin' })
+useHead({ title: 'Cursos | Admin' })
 
 const admin = useAdmin()
 const toast = useToast()

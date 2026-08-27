@@ -12,7 +12,7 @@ const rows = ref<QuizResponseRow[]>([])
 const questions = ref<AdminQuizQuestion[]>([])
 const loading = ref(false)
 
-// Só as dissertativas — são as que têm texto pra mostrar/exportar.
+// Só as dissertativas: são as que têm texto pra mostrar/exportar.
 const textQuestions = computed(() => questions.value.filter((q) => q.type === 'text'))
 
 const load = async () => {
@@ -122,7 +122,7 @@ const exportCsv = () => {
               class="rounded-md border border-white/5 bg-white/[0.02] px-3 py-2"
             >
               <p class="text-[11px] text-neutral-500">{{ q.prompt }}</p>
-              <p class="text-neutral-200 whitespace-pre-wrap">{{ r.answers[q.key ?? ''] || '—' }}</p>
+              <p class="text-neutral-200 whitespace-pre-wrap">{{ r.answers[q.key ?? ''] || '-' }}</p>
             </div>
           </div>
         </div>

@@ -100,7 +100,7 @@ def compress_pdf(data: bytes, setting: str = '/printer') -> bytes:
     """Downsampla imagens do PDF via ghostscript. /printer = 300dpi: acima disso é desperdício (tela
     mostra ≤150dpi, impressão usa 300), então não há perda perceptível pro aluno. Encolhe apostila
     image-heavy ~8x. Devolve o ORIGINAL, sem tocar, se: não for PDF válido, o gs falhar, o resultado
-    não encolher, ou o nº de páginas mudar — nunca troca por um arquivo corrompido/diferente.
+    não encolher, ou o nº de páginas mudar, nunca troca por um arquivo corrompido/diferente.
     ponytail: shell-out pro gs (recomprimir imagem em Python seria reinventar). Knob `setting` se um
     dia quiserem qualidade diferente por curso."""
     try:

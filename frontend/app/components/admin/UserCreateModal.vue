@@ -82,7 +82,7 @@ const toggleCourse = (id: number) => {
         <input
           v-model="form.phone"
           type="tel"
-          placeholder="(11) 99999-8888 — opcional, para WhatsApp"
+          placeholder="(11) 99999-8888, opcional, para WhatsApp"
           class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
         >
       </div>

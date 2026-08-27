@@ -22,7 +22,7 @@ const courseId = Number(route.params.id)
 const TYPES = [
   { value: 'text', label: 'Texto curto' },
   { value: 'textarea', label: 'Texto longo' },
-  { value: 'rating', label: 'Nota (1–5)' },
+  { value: 'rating', label: 'Nota (1 a 5)' },
   { value: 'choice', label: 'Escolha' },
 ] as const
 
@@ -58,7 +58,7 @@ const load = async () => {
 }
 await load()
 
-useHead({ title: 'Formulário do curso — Admin' })
+useHead({ title: 'Formulário do curso | Admin' })
 
 const addField = () => {
   // key temp só p/ o item-key do draggable ser único; removida no save (backend atribui campo_i)
@@ -138,7 +138,7 @@ const exportCsv = () => {
 
 const fmtAnswers = (r: FormResponseRow) =>
   form.fields
-    .map((f) => `${f.label}: ${r.answers[f.key ?? ''] ?? '—'}`)
+    .map((f) => `${f.label}: ${r.answers[f.key ?? ''] ?? '-'}`)
     .join('  ·  ')
 
 const inputClass =

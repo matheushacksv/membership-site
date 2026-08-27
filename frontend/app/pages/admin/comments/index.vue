@@ -93,7 +93,7 @@ const submitReply = async () => {
     replyTargetId.value = null
     replyBody.value = ''
     await Promise.all([loadThread(active.value!.id), loadTree()])
-    toast.success('Resposta enviada — thread moderada')
+    toast.success('Resposta enviada, thread moderada')
   } catch {
     toast.error('Falha ao responder')
   } finally {

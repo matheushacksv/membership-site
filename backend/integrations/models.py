@@ -3,7 +3,7 @@ from django.db import models
 
 class EvolutionConfig(models.Model):
     """Config singleton (pk=1) da instância Evolution API pra WhatsApp. Editável no
-    painel admin. api_key é segredo — só trafega por rota staff, nunca no front público."""
+    painel admin. api_key é segredo, só trafega por rota staff, nunca no front público."""
 
     base_url = models.URLField(blank=True)
     instance = models.CharField(max_length=120, blank=True)
@@ -27,7 +27,7 @@ class EvolutionConfig(models.Model):
 class PandaConfig(models.Model):
     """Config singleton (pk=1) da API do Panda Video. Usada só pra buscar a duração dos
     vídeos e preencher Lesson.duration_seconds automático (carga horária do certificado).
-    api_key é segredo — só trafega por rota staff."""
+    api_key é segredo, só trafega por rota staff."""
 
     base_url = models.URLField(blank=True, default='https://api-v2.pandavideo.com.br')
     api_key = models.CharField(max_length=255, blank=True)

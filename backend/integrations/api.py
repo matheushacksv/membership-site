@@ -124,7 +124,7 @@ def _enroll(user: User, course: Course, source: str, order_id: str = '') -> None
 
 def _safe_enqueue(func_path: str, *args) -> None:
     # Email é best-effort: se o broker (Redis) estiver fora, enfileirar levanta
-    # exceção. Não pode derrubar o webhook de uma compra aprovada — a matrícula
+    # exceção. Não pode derrubar o webhook de uma compra aprovada, a matrícula
     # já foi persistida; aqui só logamos a falha do email.
     try:
         async_task(func_path, *args)

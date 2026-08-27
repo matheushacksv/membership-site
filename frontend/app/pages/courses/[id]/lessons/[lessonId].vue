@@ -56,7 +56,7 @@ const preconnectLinks = computed(() => {
 
 useHead(() => ({
   title: currentLesson.value
-    ? `${currentLesson.value.name} — ${course.value?.name || 'Curso'}`
+    ? `${currentLesson.value.name}, ${course.value?.name || 'Curso'}`
     : 'Curso',
   link: preconnectLinks.value,
 }))

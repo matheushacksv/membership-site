@@ -186,10 +186,10 @@ def my_courses(request):
 
 def _completion(user, course_id: int) -> tuple[int, int]:
     """(total, concluídas) das aulas que o aluno realmente vê/conclui: publicadas E em
-    módulo publicado (o course_detail só mostra módulos publicados). Fonte única do 100% —
+    módulo publicado (o course_detail só mostra módulos publicados). Fonte única do 100%,
     sem o filtro de módulo, uma aula publicada em módulo rascunho travava o certificado."""
     # distinct=True é obrigatório: o filtro do `completed` faz JOIN em progress (de TODOS os
-    # usuários), duplicando linhas — sem distinct o `total` infla e nunca chega a 100%.
+    # usuários), duplicando linhas, sem distinct o `total` infla e nunca chega a 100%.
     agg = Lesson.objects.filter(
         module__course_id=course_id, module__is_published=True, is_published=True
     ).aggregate(

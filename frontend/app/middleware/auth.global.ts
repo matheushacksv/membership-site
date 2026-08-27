@@ -15,7 +15,7 @@ export default defineNuxtRouteMiddleware((to) => {
   // A camada useApi faz refresh-and-retry na primeira chamada e restaura o access.
   const isAuthenticated = !!access.value || !!refresh.value
   // LP de curso grátis (/lp/<slug>) e verificação de certificado (/verificar/<code>) são
-  // públicas e dinâmicas — Set não cobre, checa prefixo.
+  // públicas e dinâmicas, Set não cobre, checa prefixo.
   const isPublic =
     PUBLIC_ROUTES.has(to.path) || to.path.startsWith('/lp/') || to.path.startsWith('/verificar/')
 

@@ -56,7 +56,7 @@ class LessonProgress(models.Model):
 
 class Certificate(models.Model):
     """Certificado de conclusão (100% do curso). Só metadado: o PDF é regerado on-demand
-    a partir desta linha (ver enrollments/certificate_pdf.py) — nada é gravado no storage.
+    a partir desta linha (ver enrollments/certificate_pdf.py), nada é gravado no storage.
     Os campos de aluno/carga são snapshots do momento da emissão, pro certificado ficar
     estável se o aluno depois renomear ou o curso mudar."""
 

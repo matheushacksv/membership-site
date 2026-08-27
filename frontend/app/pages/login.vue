@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { FetchError } from 'ofetch'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Entrar — Grupo Enriquecedor' })
+useHead({ title: 'Entrar | Grupo Enriquecedor' })
 
 const { login } = useAuth()
 const route = useRoute()

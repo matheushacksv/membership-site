@@ -3,7 +3,7 @@ import { Plus, Loader2, Search, Upload } from 'lucide-vue-next'
 import type { AdminUser, EnrollmentItem } from '~/composables/useAdmin'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
-useHead({ title: 'Alunos — Admin' })
+useHead({ title: 'Alunos | Admin' })
 
 const admin = useAdmin()
 

@@ -233,7 +233,7 @@ def course_detail(request, course_id: int):
 
     # Lock por progressão: um módulo `requires_previous` trava até TODAS as aulas
     # publicadas dos módulos anteriores estarem concluídas. Módulos já vêm em ordem;
-    # acumula os ids "até aqui" e checa subset — zero query extra.
+    # acumula os ids "até aqui" e checa subset, zero query extra.
     seen_lesson_ids: set[int] = set()
     for module in getattr(course, 'modules').all():
         module._locked = module.requires_previous and not seen_lesson_ids <= completed_ids
@@ -343,7 +343,7 @@ def submit_form_response(request, form_id: int, data: FormResponseIn):
 
 
 def _quiz_result(questions: list[dict], answers: dict) -> QuizResultOut:
-    """Corrige. Só roda no servidor — é aqui que o gabarito aparece pela primeira vez.
+    """Corrige. Só roda no servidor, é aqui que o gabarito aparece pela primeira vez.
     Dissertativa (type='text') não entra na nota: coletada só. total/score contam só escolha."""
     results = []
     for q in questions:
@@ -374,7 +374,7 @@ QUIZ_TIMEOUT_GRACE = 3  # segundos de folga p/ latência de rede (submit no limi
 
 
 def _attempt_result(questions: list[dict], attempt) -> QuizResultOut:
-    """Resultado de uma tentativa já finalizada. Respeita a nota guardada — timeout ficou
+    """Resultado de uma tentativa já finalizada. Respeita a nota guardada, timeout ficou
     com score=0 mesmo que a correção das respostas parciais desse mais."""
     r = _quiz_result(questions, attempt.answers)
     r.score = attempt.score
@@ -415,7 +415,7 @@ def get_lesson_quiz(request, lesson_id: int):
     attempt = QuizAttempt.objects.filter(lesson=lesson, user=request.auth).first()
 
     # Detecção preguiçosa: tentativa aberta que já venceu vira falha por timeout aqui
-    # mesmo — defesa extra à task ONCE. A guarda atômica evita webhook duplicado.
+    # mesmo, defesa extra à task ONCE. A guarda atômica evita webhook duplicado.
     if _quiz_expired(lesson, attempt, timezone.now()):
         from .tasks import _apply_timeout
 
@@ -438,7 +438,7 @@ def get_lesson_quiz(request, lesson_id: int):
 @catalog_router.post('/lessons/{lesson_id}/quiz/start', response={200: QuizTimerOut, 400: Error, 403: Error, 404: Error, 409: Error})
 def start_lesson_quiz(request, lesson_id: int):
     """Marca o início da tentativa cronometrada (fonte da verdade do tempo é o servidor) e
-    agenda o vencimento. Reload não estende o tempo — devolve o mesmo timer."""
+    agenda o vencimento. Reload não estende o tempo, devolve o mesmo timer."""
     lesson = get_object_or_404(Lesson.objects.select_related('module__course'), id=lesson_id)
     if denied := _assert_enrolled_or_403(request, lesson):
         return denied
@@ -499,9 +499,9 @@ def submit_lesson_quiz(request, lesson_id: int, data: QuizSubmitIn):
         return Status(409, Error(detail='Exercício já respondido'))
 
     now = timezone.now()
-    # Timeout se: (a) o cliente sinalizou (auto-submit no zero) — confiamos porque só
+    # Timeout se: (a) o cliente sinalizou (auto-submit no zero), confiamos porque só
     # PIORA p/ o aluno, sem incentivo a trapaça; ou (b) o servidor vê o tempo estourado
-    # (limite+GRACE) — pega quem manda timed_out=false e submete atrasado.
+    # (limite+GRACE), pega quem manda timed_out=false e submete atrasado.
     is_timeout = bool(lesson.time_limit_seconds) and (
         data.timed_out or not attempt or not attempt.started_at or _quiz_expired(lesson, attempt, now)
     )
@@ -578,7 +578,7 @@ def list_active_banners(request):
 # ? --------- LP de curso gratuito ---------- ? #
 # * ----------------------------------------- * #
 # Públicos (auth=None): a LP fica no subdomínio de cursos, sem login. Só operam em
-# curso is_free=True — nunca matriculam num curso pago (gate de segurança).
+# curso is_free=True, nunca matriculam num curso pago (gate de segurança).
 
 
 @catalog_router.get('/free/{slug}', response={200: FreeCourseLPOut, 404: Error}, auth=None)
@@ -630,7 +630,7 @@ def free_course_signup(request, slug: str, data: FreeSignupIn):
             logger.exception('Falha ao enfileirar whatsapp de acesso (LP)')
 
     # Segurança: só auto-loga (emite JWT) conta RECÉM-criada nesta request. Email já
-    # existente jamais é logado por um POST público — evita account takeover. O dono
+    # existente jamais é logado por um POST público, evita account takeover. O dono
     # da conta existente entra pelos canais que provam posse (email/WhatsApp).
     access = refresh = None
     if created:
@@ -1178,7 +1178,7 @@ def _pending_q():
 
 
 def _resolve_thread(root_id: int):
-    """Marca a thread inteira (raiz + respostas) como moderada — sai da fila."""
+    """Marca a thread inteira (raiz + respostas) como moderada, sai da fila."""
     LessonComment.objects.filter(Q(id=root_id) | Q(parent_id=root_id)).update(resolved_at=timezone.now())
 
 
@@ -1228,7 +1228,7 @@ def _lesson_thread(lesson_id: int):
 
 @admin_router.get('/lessons/{lesson_id}/comments', response=list[AdminCommentOut])
 def admin_lesson_comments(request, lesson_id: int):
-    """Thread da aula pro admin (só leitura) — sem gate de matrícula (mirror de list_comments)."""
+    """Thread da aula pro admin (só leitura), sem gate de matrícula (mirror de list_comments)."""
     staff_required(request)
     return _lesson_thread(lesson_id)
 

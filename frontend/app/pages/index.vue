@@ -4,7 +4,7 @@ import { Search, RefreshCw, AlertCircle } from 'lucide-vue-next'
 import type { CourseListItem } from '~/composables/useCatalog'
 
 definePageMeta({ layout: 'default' })
-useHead({ title: 'Início — Grupo Enriquecedor' })
+useHead({ title: 'Início | Grupo Enriquecedor' })
 
 const { data: me } = useMe()
 const { myCourses, availableCourses, banners } = useCatalog()

@@ -189,7 +189,7 @@ export interface AttachmentLibraryItem extends AttachmentItem {
   course_name: string
 }
 
-// Pergunta completa (com gabarito) — só trafega em rota staff.
+// Pergunta completa (com gabarito): só trafega em rota staff.
 export interface AdminQuizQuestion {
   key?: string
   prompt: string
@@ -463,7 +463,7 @@ export const useAdmin = () => {
     listFormResponses: (course_id: number) =>
       api<FormResponseRow[]>(`/admin/courses/${course_id}/form/responses`),
 
-    // Integrações — Evolution API (WhatsApp)
+    // Integrações: Evolution API (WhatsApp)
     getEvolutionConfig: () =>
       api<EvolutionConfig>('/integrations/evolution/config'),
     saveEvolutionConfig: (body: EvolutionConfig) =>
@@ -472,7 +472,7 @@ export const useAdmin = () => {
         body,
       }),
 
-    // Integrações — Panda Video (duração automática das aulas)
+    // Integrações: Panda Video (duração automática das aulas)
     getPandaConfig: () =>
       api<PandaConfig>('/integrations/panda/config'),
     savePandaConfig: (body: PandaConfig) =>
@@ -483,7 +483,7 @@ export const useAdmin = () => {
     pandaBackfill: () =>
       api<{ queued: number }>('/integrations/panda/backfill', { method: 'POST' }),
 
-    // Certificado — config (assinante + assinatura no banco)
+    // Certificado: config (assinante + assinatura no banco)
     getCertificateConfig: () =>
       api<CertificateConfig>('/enrollments/admin/certificate-config'),
     saveCertificateConfig: (body: { signer_name: string; signer_role: string }) =>
@@ -512,7 +512,7 @@ export const useAdmin = () => {
     deleteBanner: (id: number) =>
       api(`/admin/banners/${id}`, { method: 'DELETE' }),
 
-    // Comentários (moderação) — fila de pendentes
+    // Comentários (moderação): fila de pendentes
     listCommentsTree: () => api<CommentTreeCourse[]>('/admin/comments/tree'),
     commentsUnreadCount: () =>
       api<{ count: number }>('/admin/comments/unread-count'),
@@ -544,7 +544,7 @@ export const useAdmin = () => {
       }),
     ticketsOpenCount: () => api<{ count: number }>('/tickets/admin/open-count'),
 
-    // Informativos (broadcast) — create/update são multipart (FormData), imagem opcional.
+    // Informativos (broadcast): create/update são multipart (FormData), imagem opcional.
     announcementsList: () => api<AnnouncementAdmin[]>('/announcements/admin/all'),
     announcementCreate: (fd: FormData) =>
       api<AnnouncementAdmin>('/announcements/admin', { method: 'POST', body: fd }),

@@ -33,7 +33,7 @@ class Ticket(models.Model):
 
 
 class TicketMessage(models.Model):
-    """Cada mensagem da thread — incl. a 1ª (descrição do aluno). Sem caso especial pro root."""
+    """Cada mensagem da thread, incl. a 1ª (descrição do aluno). Sem caso especial pro root."""
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='messages')
     ticket_id: int  # anotação bare p/ o pyright (ver Ticket.user_id)

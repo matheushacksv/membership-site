@@ -421,7 +421,7 @@ class CopyModuleTests(TestCase):
         self.assertIsNotNone(denied)
         self.assertEqual(denied.status_code, 403)
 
-        # Matrícula no destino Y libera — access_days é o de Y.
+        # Matrícula no destino Y libera: access_days é o de Y.
         CourseEnrollment.objects.create(
             user=user, course=self.y, is_active=True, expires_at=timezone.now() + timedelta(days=30)
         )
@@ -449,7 +449,7 @@ class AdminCommentModerationTests(TestCase):
             email='staff@x.com', password='x', name='Staff', is_staff=True
         )
         self.aluno = get_user_model().objects.create_user(email='aluno@x.com', password='x', name='Aluno')
-        self.req = SimpleNamespace(auth=self.staff)  # staff NÃO matriculado — prova bypass no reply
+        self.req = SimpleNamespace(auth=self.staff)  # staff NÃO matriculado, prova bypass no reply
 
         self.course = Course.objects.create(name='Curso Z', category=Course.Category.SALES)
         self.module = Module.objects.create(course=self.course, name='Módulo 1', order=0)

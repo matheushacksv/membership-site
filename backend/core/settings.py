@@ -160,7 +160,7 @@ Q_CLUSTER = {
     'timeout': 60,
     'retry': 120,
     # Falha é final: dá ack na task que falhou e não reenfileira. Sem isso (default
-    # ack_failures=False, max_attempts=0) uma task que sempre falha — ex.: SMTP fora —
+    # ack_failures=False, max_attempts=0) uma task que sempre falha, ex.: SMTP fora,
     # é redelivered a cada `retry`s pra sempre, virando loop infinito que martela o
     # servidor de email. max_attempts=1 = sem retry automático.
     'ack_failures': True,

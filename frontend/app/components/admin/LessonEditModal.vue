@@ -231,7 +231,7 @@ const save = async () => {
             v-model="form.video_provider"
             class="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:border-orange-500/50 focus:outline-none"
           >
-            <option value="" class="bg-black">— sem vídeo —</option>
+            <option value="" class="bg-black">sem vídeo</option>
             <option value="youtube" class="bg-black">YouTube</option>
             <option value="vimeo" class="bg-black">Vimeo</option>
             <option value="panda" class="bg-black">Panda Video</option>

@@ -2,9 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Paperclip, X } from 'lucide-vue-next'
 
-// Abre o anexo num modal (sem <a href> — não expõe a URL do S3 como link clicável).
+// Abre o anexo num modal (sem <a href>: não expõe a URL do S3 como link clicável).
 // ponytail: a URL ainda vai no src do img/iframe (visível no devtools). Esconder de vez =
-// endpoint proxy no backend servindo o arquivo (liga com bucket privado — ver memory
+// endpoint proxy no backend servindo o arquivo (liga com bucket privado, ver memory
 // download-watermark-bypass). Só necessário se sigilo do anexo virar requisito.
 const props = defineProps<{ url: string }>()
 const open = ref(false)

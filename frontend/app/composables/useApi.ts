@@ -51,7 +51,7 @@ export const useApi = () => {
   }
 
   // Wrapper: no 401, faz refresh e RETENTA a request original uma vez com o token novo.
-  // Assim o access curto (30 min) fica transparente — o caller nunca vê o 401 de expiração.
+  // Assim o access curto (30 min) fica transparente, o caller nunca vê o 401 de expiração.
   return async <T>(request: any, opts: Record<string, any> = {}): Promise<T> => {
     try {
       return await $fetch<T>(request, build(opts, access.value))

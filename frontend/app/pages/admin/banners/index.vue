@@ -3,7 +3,7 @@ import { Plus, Loader2, Trash2, Eye, EyeOff, ImagePlus, ExternalLink } from 'luc
 import type { BannerItem } from '~/composables/useCatalog'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
-useHead({ title: 'Banners — Admin' })
+useHead({ title: 'Banners | Admin' })
 
 // Dimensão recomendada do banner (proporção 4:1). Exibida no modal pra quem faz upload.
 const REC_W = 1600
@@ -205,7 +205,7 @@ const remove = async (b: BannerItem) => {
           <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onPick">
           <p class="mt-2 text-xs text-orange-300/90 bg-orange-500/10 border border-orange-500/20 rounded-md px-3 py-2">
             <strong>Tamanho recomendado: {{ REC_W }}×{{ REC_H }}px</strong> (proporção 4:1, formato largo).
-            JPEG, PNG ou WebP — máx 5MB. Imagens fora dessa proporção serão cortadas pra caber.
+            JPEG, PNG ou WebP, máx 5MB. Imagens fora dessa proporção serão cortadas pra caber.
           </p>
         </div>
 

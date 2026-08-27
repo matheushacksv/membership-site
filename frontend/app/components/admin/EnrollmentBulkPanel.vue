@@ -259,7 +259,7 @@ const isExpired = (s: string | null) => !!s && new Date(s) <= new Date()
           :title="e.is_active ? 'Ativa' : 'Inativa'"
         />
         <div class="flex-1 min-w-0">
-          <p class="text-sm text-white truncate">{{ e.user_name || '—' }}</p>
+          <p class="text-sm text-white truncate">{{ e.user_name || '-' }}</p>
           <p class="text-xs text-neutral-500 truncate">{{ e.user_email }}</p>
         </div>
         <span
