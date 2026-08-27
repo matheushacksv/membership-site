@@ -1,4 +1,3 @@
-from email.mime.image import MIMEImage
 from functools import lru_cache
 from pathlib import Path
 
@@ -21,11 +20,31 @@ def _logo_bytes() -> bytes:
     return _LOGO_PATH.read_bytes()
 
 
-def _attach_logo(msg: EmailMultiAlternatives) -> None:
-    img = MIMEImage(_logo_bytes())
-    img.add_header('Content-ID', f'<{LOGO_CID}>')
-    img.add_header('Content-Disposition', 'inline', filename='logo.png')
-    msg.attach(img)
+class _BrandedEmail(EmailMultiAlternatives):
+    """Email da marca com o logo como recurso do HTML, não como anexo.
+
+    Django 6 monta todo anexo em multipart/mixed, e nessa árvore o Gmail e o Outlook
+    listam o logo.png como arquivo do email, mesmo com Content-Disposition inline. O
+    container correto pra imagem referenciada por cid: é multipart/related, que a
+    stdlib monta via add_related.
+    """
+
+    def _add_attachments(self, msg):
+        super()._add_attachments(msg)
+        # O logo entra dentro da parte HTML, que vira multipart/related. Fora dela, em
+        # multipart/mixed (o que o Django 6 faz com qualquer anexo), o Gmail e o Outlook
+        # listam o logo.png como arquivo do email mesmo com disposition inline.
+        html = next((part for part in msg.walk() if part.get_content_type() == 'text/html'), None)
+        if html is None:  # sem corpo HTML não há cid: pra resolver
+            return
+        html.add_related(
+            _logo_bytes(),
+            maintype='image',
+            subtype='png',
+            cid=f'<{LOGO_CID}>',
+            disposition='inline',
+            filename='logo.png',
+        )
 
 
 def render_email(content_html: str, cta_label: str | None = None, cta_url: str | None = None) -> str:
@@ -81,7 +100,6 @@ def build_branded_email(
 
     Passe `connection` para reusar 1 conexão SMTP num lote (send_welcome_emails/broadcast).
     """
-    msg = EmailMultiAlternatives(subject, text, settings.DEFAULT_FROM_EMAIL, recipients, connection=connection)
+    msg = _BrandedEmail(subject, text, settings.DEFAULT_FROM_EMAIL, recipients, connection=connection)
     msg.attach_alternative(render_email(content_html, cta_label, cta_url), 'text/html')
-    _attach_logo(msg)
     return msg

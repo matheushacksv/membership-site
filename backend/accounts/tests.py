@@ -2,11 +2,12 @@ from unittest import mock
 from urllib.parse import unquote
 
 from django.contrib.auth import get_user_model
-from django.core import signing
+from django.core import mail, signing
 from django.test import TestCase
 from ninja_jwt.tokens import AccessToken, RefreshToken
 
 from accounts.api import MAGIC_LINK_SALT
+from accounts.tasks import send_password_changed_email
 from courses.models import Course
 from enrollments.models import CourseEnrollment
 
@@ -101,6 +102,35 @@ class MagicLoginTests(TestCase):
         # mesmo par não serve de novo: o hash da senha entra no hash do token
         res = self.client.post(RESET_PASSWORD, data=body, content_type='application/json')
         self.assertEqual(res.status_code, 400)
+
+
+class BrandedEmailTests(TestCase):
+    """O logo é recurso do HTML (cid:), nunca um arquivo anexado ao email.
+
+    Django 6 monta anexo em multipart/mixed, e ali o cliente lista o logo.png junto
+    dos anexos do usuário. A árvore certa põe a imagem dentro da parte HTML.
+    """
+
+    def test_logo_vai_inline_e_nao_como_anexo(self):
+        user = User.objects.create_user(email='aluno@test.com', password='x', name='Aluno')
+        send_password_changed_email(user.pk)
+
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0].message()
+
+        images = [p for p in msg.walk() if p.get_content_type() == 'image/png']
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0]['Content-ID'], '<brandlogo>')
+        self.assertNotIn('attachment', str(images[0]['Content-Disposition']))
+
+        # a imagem mora dentro de um multipart/related, ao lado do HTML que a referencia
+        related = [p for p in msg.walk() if p.get_content_type() == 'multipart/related']
+        self.assertEqual(len(related), 1)
+        subtipos = {p.get_content_type() for p in related[0].get_payload()}
+        self.assertEqual(subtipos, {'text/html', 'image/png'})
+
+        html = next(p for p in msg.walk() if p.get_content_type() == 'text/html')
+        self.assertIn('cid:brandlogo', html.get_content())
 
 
 class DeleteUserTests(TestCase):
