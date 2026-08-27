@@ -95,6 +95,14 @@ class MagicLoginIn(Schema):
     token: str
 
 
+class MagicTokenOut(TokenOut):
+    # Par de reset devolvido junto do JWT no magic login: deixa o usuário definir a
+    # senha sem saber a antiga (o link já provou posse do canal). O token do
+    # default_token_generator invalida sozinho assim que a senha muda.
+    reset_uid: str
+    reset_token: str
+
+
 class MagicLinkOut(Schema):
     url: str
     expires_at: datetime

@@ -85,12 +85,20 @@ const generateLink = async () => {
   linking.value = true
   try {
     const { url } = await admin.generateLoginLink(props.user.id)
+    // Aviso vai junto no clipboard, depois do link (WhatsApp corta o auto-link no
+    // espaço, então o link tem que vir primeiro). Serve pros dois leitores: lembra o
+    // admin de não colar em grupo e avisa o aluno de não encaminhar — hoje o link
+    // entra na conta E abre a troca de senha, então repassá-lo é entregar a conta.
+    const text =
+      `${url}\n\n` +
+      '⚠️ Link pessoal e intransferível: vale 2 horas, entra direto na conta e ' +
+      'permite definir uma nova senha. Não encaminhe para ninguém.'
     try {
-      await navigator.clipboard.writeText(url)
-      toast.success('Link de acesso copiado (válido 24h)')
+      await navigator.clipboard.writeText(text)
+      toast.success('Link + aviso copiados (válido 2h)')
     } catch {
       // clipboard indisponível (contexto não-seguro): prompt garante o copiar manual
-      window.prompt('Copie o link de acesso (válido 24h):', url)
+      window.prompt('Copie o link de acesso (válido 2h, permite trocar a senha):', text)
     }
   } catch (e: any) {
     toast.error(e?.data?.detail || 'Falha ao gerar link')
@@ -192,7 +200,7 @@ defineExpose({ load })
           type="button"
           :disabled="linking"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-400 hover:text-orange-300 hover:bg-white/5 rounded-md disabled:opacity-50"
-          title="Gera link de login automático (válido 24h) e copia"
+          title="Gera link de login automático (válido 2h, permite trocar a senha) e copia"
           @click="generateLink"
         >
           <Loader2 v-if="linking" class="w-3.5 h-3.5 animate-spin" />

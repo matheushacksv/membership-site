@@ -11,6 +11,9 @@ const api = useApi()
 
 const uid = computed(() => String(route.query.uid || ''))
 const token = computed(() => String(route.query.token || ''))
+// Vindo do /magic o usuário JÁ está logado: o destino final é a plataforma, não o
+// login, e trocar a senha agora é opcional (dá pra seguir e trocar depois no perfil).
+const fromMagic = computed(() => route.query.magic === '1')
 
 const password = ref('')
 const repeatPassword = ref('')
@@ -109,7 +112,7 @@ const onSubmit = async () => {
       },
     })
     success.value = true
-    setTimeout(() => navigateTo('/login'), 2500)
+    setTimeout(() => navigateTo(fromMagic.value ? '/' : '/login'), 2500)
   } catch (e) {
     if (e instanceof FetchError) {
       error.value = e.data?.detail || 'Erro ao redefinir senha'
@@ -217,13 +220,14 @@ const onSubmit = async () => {
           </h1>
         </div>
         <p class="text-sm text-white/60 mb-6">
-          Sua senha foi atualizada com sucesso. Redirecionando para o login...
+          Sua senha foi atualizada com sucesso.
+          {{ fromMagic ? 'Levando você para a plataforma...' : 'Redirecionando para o login...' }}
         </p>
         <NuxtLink
-          to="/login"
+          :to="fromMagic ? '/' : '/login'"
           class="block w-full text-center py-2 text-sm text-orange-500 hover:text-orange-400 transition-colors"
         >
-          Ir para login agora
+          {{ fromMagic ? 'Ir para a plataforma agora' : 'Ir para login agora' }}
         </NuxtLink>
       </template>
 
@@ -234,7 +238,11 @@ const onSubmit = async () => {
           <span class="text-transparent bg-clip-text bg-gradient-to-r from-white via-neutral-200 to-neutral-500">nova senha</span>
         </h1>
         <p class="text-sm text-white/60 mb-8">
-          Escolha uma senha forte com pelo menos 8 caracteres.
+          {{
+            fromMagic
+              ? 'Você já está dentro. Crie uma senha agora para entrar sozinho da próxima vez, sem precisar de link.'
+              : 'Escolha uma senha forte com pelo menos 8 caracteres.'
+          }}
         </p>
 
         <Transition name="fade">
@@ -279,8 +287,11 @@ const onSubmit = async () => {
       </div>
 
       <p v-if="!validating" class="text-center text-sm text-neutral-500">
-        <NuxtLink to="/login" class="text-orange-500 hover:text-orange-400 font-medium transition-colors">
-          Voltar ao login
+        <NuxtLink
+          :to="fromMagic ? '/' : '/login'"
+          class="text-orange-500 hover:text-orange-400 font-medium transition-colors"
+        >
+          {{ fromMagic ? 'Continuar sem trocar a senha' : 'Voltar ao login' }}
         </NuxtLink>
       </p>
     </div>

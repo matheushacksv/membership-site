@@ -20,13 +20,23 @@ onMounted(async () => {
     return
   }
   try {
-    const data = await api<{ access: string; refresh: string }>('/auth/magic/login', {
+    const data = await api<{
+      access: string
+      refresh: string
+      reset_uid: string
+      reset_token: string
+    }>('/auth/magic/login', {
       method: 'POST',
       body: { token },
     })
     access.value = data.access
     refresh.value = data.refresh
-    await navigateTo('/')
+    // Já entra logado, mas cai direto na tela de nova senha: o link prova posse do
+    // canal, então o par uid/token que vem no response substitui a senha antiga.
+    // Quem não quiser trocar agora tem o "continuar sem trocar" na própria tela.
+    await navigateTo(
+      `/reset-password?uid=${data.reset_uid}&token=${data.reset_token}&magic=1`
+    )
   } catch (e: any) {
     error.value = e?.data?.detail || 'Link inválido ou expirado.'
   }
@@ -60,7 +70,7 @@ onMounted(async () => {
           {{ error }}
         </p>
         <p class="text-xs text-neutral-500 mb-6">
-          O link de acesso pode ter expirado (válido por 24h). Peça um novo ou entre com email e senha.
+          O link de acesso pode ter expirado (válido por 2h). Peça um novo ou entre com email e senha.
         </p>
         <NuxtLink
           to="/login"

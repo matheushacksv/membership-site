@@ -13,6 +13,7 @@ from enrollments.models import CourseEnrollment
 User = get_user_model()
 
 MAGIC_LOGIN = '/api/auth/magic/login'
+RESET_PASSWORD = '/api/auth/reset-password'
 
 
 class MagicLoginTests(TestCase):
@@ -75,6 +76,31 @@ class MagicLoginTests(TestCase):
         self.user.save()
         res = self._post(token)
         self.assertEqual(res.status_code, 401)
+
+    @mock.patch('accounts.api.async_task')
+    def test_reset_pair_sets_password_without_the_old_one(self, _async):
+        """Fluxo do magic link: o par uid/token que vem no login troca a senha sem
+        pedir a antiga, e vira sucata assim que a senha muda (não dá pra reusar)."""
+        token = signing.dumps(self.user.pk, salt=MAGIC_LINK_SALT)
+        data = self._post(token).json()
+
+        body = {
+            'uid': data['reset_uid'],
+            'token': data['reset_token'],
+            'password': 'senhanova123',
+            'repeat_password': 'senhanova123',
+        }
+        res = self.client.post(RESET_PASSWORD, data=body, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('senhanova123'))
+        # aviso de "sua senha foi alterada" enfileirado
+        _async.assert_called_with('accounts.tasks.send_password_changed_email', self.user.pk)
+
+        # mesmo par não serve de novo: o hash da senha entra no hash do token
+        res = self.client.post(RESET_PASSWORD, data=body, content_type='application/json')
+        self.assertEqual(res.status_code, 400)
 
 
 class DeleteUserTests(TestCase):

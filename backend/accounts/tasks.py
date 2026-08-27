@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import get_connection
 from django.db import transaction
+from django.utils import timezone
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django_q.tasks import async_task
@@ -169,6 +170,43 @@ def send_reset_email(user_id: int, reset_url: str):
         'Redefinição de senha - Grupo Enriquecedor', [user.email], text=text, content_html=content,
         cta_label='Redefinir senha', cta_url=reset_url,
     ).send(fail_silently=True)
+
+def send_password_changed_email(user_id: int):
+    """Avisa o dono da conta que a senha mudou, com link pra retomar se não foi ele.
+
+    É a rede de segurança do login por magic link: quem recebe o link define senha sem
+    saber a antiga, então uma troca indevida (link reencaminhado, número de WhatsApp
+    errado/reciclado) precisa chegar ao email — que o usuário NÃO consegue alterar
+    sozinho, logo continua sendo o canal do dono. O link do botão é gerado depois da
+    troca, com o hash novo, e derruba a senha do invasor quando usado."""
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return
+
+    when = timezone.localtime().strftime('%d/%m/%Y às %H:%M')
+    recover_url = _password_setup_url(user)
+    name = user.name or ''
+
+    text = (
+        f'Olá {name},\n\n'
+        f'A senha da sua conta foi alterada em {when}.\n\n'
+        'Se foi você, ignore este email.\n\n'
+        f'Se NÃO foi você, redefina a senha agora por este link:\n{recover_url}\n\n'
+        'Isso invalida a senha que acabou de ser criada.'
+    )
+    content = (
+        f'<p>Olá {name},</p>'
+        f'<p>A senha da sua conta foi alterada em <strong>{when}</strong>.</p>'
+        '<p>Se foi você, não precisa fazer nada.</p>'
+        '<p><strong>Se não foi você</strong>, clique no botão abaixo para definir uma nova senha — '
+        'isso invalida a senha que acabou de ser criada.</p>'
+    )
+    build_branded_email(
+        'Sua senha foi alterada - Grupo Enriquecedor', [user.email], text=text, content_html=content,
+        cta_label='Não fui eu — redefinir senha', cta_url=recover_url,
+    ).send(fail_silently=True)
+
 
 def send_welcome_email_with_reset(user_id: int, reset_url: str | None = None):
     send_welcome_email(user_id)

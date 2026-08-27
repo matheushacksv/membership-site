@@ -29,7 +29,7 @@ def _normalize_number(phone: str) -> str:
 
 
 def send_whatsapp_access(user_id: int) -> None:
-    """Tarefa django-q: manda WhatsApp reforçando acesso, com magic-login link (24h).
+    """Tarefa django-q: manda WhatsApp reforçando acesso, com magic-login link (2h).
 
     Best-effort: se a config não estiver pronta ou o usuário não tiver telefone,
     retorna sem enviar. Erro de rede levanta → django-q loga/retenta (limitado por
@@ -50,7 +50,7 @@ def send_whatsapp_access(user_id: int) -> None:
     link = build_magic_login_url(user)
     text = (
         f'Olá {user.name or ""}! Seu acesso à plataforma está pronto. '
-        f'Entre direto por aqui (link válido 24h):\n{link}'
+        f'Entre direto por aqui (link válido 2h, só pra você):\n{link}'
     )
     body = json.dumps({'number': number, 'text': text}).encode()
     req = urllib.request.Request(

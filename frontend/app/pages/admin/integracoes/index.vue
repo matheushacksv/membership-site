@@ -102,7 +102,7 @@ const runBackfill = async () => {
       </div>
       <p class="text-xs text-neutral-500 mb-6">
         Ao criar um aluno com telefone, envia uma mensagem de acesso com link de login
-        automático (válido 24h), reforçando o email.
+        automático (válido 2h), reforçando o email.
       </p>
 
       <form class="space-y-5" @submit.prevent="save">

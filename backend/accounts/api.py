@@ -37,6 +37,7 @@ from .schemas import (
     LoginIn,
     MagicLinkOut,
     MagicLoginIn,
+    MagicTokenOut,
     MessageOut,
     NewUserFromWebhook,
     RefreshIn,
@@ -55,13 +56,13 @@ logger = logging.getLogger(__name__)
 
 MAX_BYTES = 2 * 1024 * 1024  # 2MB
 MAGIC_LINK_SALT = 'magic-login'
-MAGIC_LINK_MAX_AGE = 60 * 60 * 24  # 24h
+MAGIC_LINK_MAX_AGE = 60 * 60 * 2  # 2h
 
 router = Router(tags=['Users'])
 
 
 def build_magic_login_url(user: User) -> str:
-    """URL de login automático (24h). Reusada pelo endpoint staff e pela task de
+    """URL de login automático (2h). Reusada pelo endpoint staff e pela task de
     WhatsApp (integrations.tasks.send_whatsapp_access). Stateless — nada no banco.
 
     Token vai URL-encodado: signing.dumps usa ':' como separador, e o WhatsApp corta
@@ -113,6 +114,7 @@ def reset_password(request, data: ResetPasswordIn):
 
     user.set_password(data.password)
     user.save()
+    async_task('accounts.tasks.send_password_changed_email', user.pk)
     return Status(200, MessageOut(detail='Password reset successfully'))
 
 
@@ -186,9 +188,9 @@ def refresh_token(request, data: RefreshIn):
         return Status(401, Error(detail='Invalid or expired token'))
 
 
-@router.post('/magic/login', response={200: TokenOut, 401: Error}, auth=None)
+@router.post('/magic/login', response={200: MagicTokenOut, 401: Error}, auth=None)
 def magic_login(request, data: MagicLoginIn):
-    # Link de login automático (24h). Token assinado (django.core.signing) carrega o
+    # Link de login automático (2h). Token assinado (django.core.signing) carrega o
     # pk; consumir = emitir JWT direto, igual signin. SignatureExpired é subclasse de
     # BadSignature → um except cobre expirado + adulterado. Mensagem genérica: não
     # revela se o pk existe.
@@ -201,8 +203,20 @@ def magic_login(request, data: MagicLoginIn):
     if not user:
         return Status(401, Error(detail='Link inválido ou expirado'))
 
+    # Junto do JWT vai um par uid/token de reset: quem abriu o link provou posse do
+    # canal (email/WhatsApp) — a mesma prova que o fluxo de "esqueci a senha" exige.
+    # Com isso o frontend leva direto pra tela de nova senha, sem pedir a senha antiga.
+    # Janela curta (link vale 2h) limita o estrago de um link reencaminhado.
     refresh = RefreshToken.for_user(user)
-    return Status(200, TokenOut(access=str(refresh.access_token), refresh=str(refresh)))  # type: ignore
+    return Status(
+        200,
+        MagicTokenOut(
+            access=str(refresh.access_token),  # type: ignore
+            refresh=str(refresh),
+            reset_uid=urlsafe_base64_encode(force_bytes(user.pk)),
+            reset_token=default_token_generator.make_token(user),
+        ),
+    )
 
 
 @router.get('/me', response=UserOut)
@@ -221,6 +235,7 @@ def update_me(request, data: UpdateMeIn):
         if not user.check_password(data.current_password):
             return Status(400, Error(detail='Incorrect password'))
         user.set_password(data.new_password)
+        async_task('accounts.tasks.send_password_changed_email', user.pk)
 
     if data.name is not None:
         user.name = data.name
@@ -316,7 +331,7 @@ def resend_welcome(request, user_id: int):
 
 @router.post('/admin/users/{user_id}/login-link', response={200: MagicLinkOut, 404: Error})
 def generate_login_link(request, user_id: int):
-    # Gera link de login automático (24h). Endpoint reutilizável: admin copia agora,
+    # Gera link de login automático (2h). Endpoint reutilizável: admin copia agora,
     # integração WhatsApp chama depois. Stateless — nada gravado no banco.
     staff_required(request)
     user = get_object_or_404(User, id=user_id)
