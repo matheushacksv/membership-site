@@ -1,17 +1,28 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { LifeBuoy, Loader2, Paperclip, Send } from 'lucide-vue-next'
+import { LifeBuoy, Loader2, Paperclip, RotateCcw, Send } from 'lucide-vue-next'
 import {
   TICKET_CATEGORIES,
   type TicketDetail,
   type TicketListItem,
+  type TicketRequester,
 } from '~/composables/useTickets'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Suporte · Admin' })
 
 const admin = useAdmin()
+const tickets = useTickets()
 const toast = useToast()
+
+const requester = ref<TicketRequester | null>(null)
+const SOURCE_LABEL: Record<string, string> = { kiwify: 'Kiwify', crm: 'CRM', admin: 'Admin', manual: 'Manual' }
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
+const enrollmentState = (e: TicketRequester['enrollments'][number]) => {
+  if (!e.is_active) return { label: 'Inativa', cls: 'text-neutral-400' }
+  if (e.expires_at && new Date(e.expires_at) <= new Date()) return { label: 'Expirada', cls: 'text-red-300' }
+  return { label: e.expires_at ? `Até ${fmtDate(e.expires_at)}` : 'Vitalícia', cls: 'text-emerald-300' }
+}
 
 const list = ref<TicketListItem[]>([])
 const loading = ref(true)
@@ -50,10 +61,14 @@ onMounted(loadList)
 const openTicket = async (id: number) => {
   detailLoading.value = true
   active.value = null
+  requester.value = null
   reply.value = ''
   replyFile.value = null
   try {
-    active.value = await admin.ticket(id)
+    // Ficha do aluno é complemento: se falhar, o chamado abre mesmo assim.
+    const [t, r] = await Promise.all([admin.ticket(id), tickets.requester(id).catch(() => null)])
+    active.value = t
+    requester.value = r
   } catch {
     toast.error('Falha ao abrir o chamado')
   } finally {
@@ -198,7 +213,85 @@ const setStatus = async (status: string) => {
           >
             Resolver
           </button>
+          <button
+            v-if="active.status === 'resolved'"
+            type="button"
+            :disabled="updatingStatus"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border border-amber-500/30 text-amber-300 hover:bg-amber-500/10 disabled:opacity-40"
+            @click="setStatus('in_progress')"
+          >
+            <RotateCcw class="w-3.5 h-3.5" />
+            Reabrir
+          </button>
         </div>
+
+        <!-- Ficha do aluno -->
+        <section v-if="requester" class="mb-4 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs">
+          <div class="flex items-center gap-3">
+            <img
+              v-if="requester.avatar_url"
+              :src="requester.avatar_url"
+              alt=""
+              class="w-10 h-10 rounded-full object-cover shrink-0"
+            >
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-white truncate">
+                {{ requester.name || 'Sem nome' }}
+                <span v-if="!requester.is_active" class="ml-1 text-[10px] uppercase font-bold text-red-300">Conta inativa</span>
+              </p>
+              <p class="text-neutral-400 truncate select-all">{{ requester.email }}</p>
+            </div>
+          </div>
+
+          <dl class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-3">
+            <div>
+              <dt class="text-neutral-500">Telefone</dt>
+              <dd class="text-neutral-200 select-all">{{ requester.phone || '-' }}</dd>
+            </div>
+            <div>
+              <dt class="text-neutral-500">CPF</dt>
+              <dd class="text-neutral-200 select-all">{{ requester.cpf || '-' }}</dd>
+            </div>
+            <div>
+              <dt class="text-neutral-500">Cadastro</dt>
+              <dd class="text-neutral-200">{{ fmtDate(requester.created_at) }}</dd>
+            </div>
+            <div>
+              <dt class="text-neutral-500">Última aula vista</dt>
+              <dd class="text-neutral-200">{{ requester.last_activity_at ? fmt(requester.last_activity_at) : 'Nunca' }}</dd>
+            </div>
+          </dl>
+
+          <div class="mt-3">
+            <p class="text-neutral-500 mb-1">Matrículas ({{ requester.enrollments.length }})</p>
+            <p v-if="!requester.enrollments.length" class="text-neutral-400">Nenhuma matrícula.</p>
+            <ul v-else class="space-y-1">
+              <li v-for="(e, i) in requester.enrollments" :key="i" class="flex items-center gap-2 flex-wrap">
+                <span class="text-neutral-200">{{ e.course_name }}</span>
+                <span :class="enrollmentState(e).cls">{{ enrollmentState(e).label }}</span>
+                <span class="text-neutral-500">{{ e.completed }}/{{ e.total }} aulas</span>
+                <span v-if="e.source" class="text-neutral-500">· {{ SOURCE_LABEL[e.source] || e.source }}</span>
+                <span class="text-neutral-500">· desde {{ fmtDate(e.enrolled_at) }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="requester.other_tickets.length" class="mt-3">
+            <p class="text-neutral-500 mb-1">Outros chamados ({{ requester.other_tickets.length }})</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="o in requester.other_tickets"
+                :key="o.id"
+                type="button"
+                class="px-2 py-1 rounded border hover:brightness-125"
+                :class="statusClass(o.status)"
+                @click="openTicket(o.id)"
+              >
+                #{{ o.id }} {{ o.category_label }} · {{ fmtDate(o.created_at) }}
+              </button>
+            </div>
+          </div>
+        </section>
 
         <div class="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
           <div
@@ -247,7 +340,7 @@ const setStatus = async (status: string) => {
           </div>
         </div>
         <p v-else class="mt-4 text-center text-xs text-neutral-500">
-          Chamado finalizado, não aceita novas mensagens.
+          Chamado finalizado. Reabra para responder.
         </p>
       </div>
     </AdminModal>

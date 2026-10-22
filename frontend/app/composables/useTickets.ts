@@ -25,6 +25,35 @@ export interface TicketDetail extends TicketListItem {
   messages: TicketMessage[]
 }
 
+// Ficha do aluno do chamado (só staff): GET /tickets/admin/{id}/requester.
+export interface TicketRequester {
+  id: number
+  name: string | null
+  email: string
+  phone: string | null
+  cpf: string
+  avatar_url: string | null
+  is_active: boolean
+  created_at: string
+  last_activity_at: string | null
+  enrollments: {
+    course_name: string
+    is_active: boolean
+    enrolled_at: string
+    expires_at: string | null
+    source: string
+    completed: number
+    total: number
+  }[]
+  other_tickets: {
+    id: number
+    category_label: string
+    status: string
+    status_label: string
+    created_at: string
+  }[]
+}
+
 // Espelha Ticket.Category no backend (tickets/models.py).
 export const TICKET_CATEGORIES = [
   { value: 'technical', label: 'Erro técnico' },
@@ -46,5 +75,6 @@ export const useTickets = () => {
       api<TicketDetail>('/tickets', { method: 'POST', body: fd }),
     addMessage: (id: number, fd: FormData) =>
       api<TicketMessage>(`/tickets/${id}/messages`, { method: 'POST', body: fd }),
+    requester: (id: number) => api<TicketRequester>(`/tickets/admin/${id}/requester`),
   }
 }

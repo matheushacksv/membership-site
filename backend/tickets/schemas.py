@@ -55,6 +55,48 @@ class TicketDetailOut(TicketOut):
     messages: list[TicketMessageOut]
 
 
+class RequesterEnrollmentOut(Schema):
+    course_name: str
+    is_active: bool
+    enrolled_at: datetime
+    expires_at: datetime | None
+    source: str
+    completed: int
+    total: int
+
+
+class RequesterTicketOut(Schema):
+    id: int
+    category_label: str
+    status: str
+    status_label: str
+    created_at: datetime
+
+    @staticmethod
+    def resolve_category_label(obj) -> str:
+        return str(Ticket.Category(obj.category).label)
+
+    @staticmethod
+    def resolve_status_label(obj) -> str:
+        return str(Ticket.Status(obj.status).label)
+
+
+class RequesterOut(Schema):
+    """Ficha do aluno que abriu o chamado (só staff)."""
+
+    id: int
+    name: str | None
+    email: str
+    phone: str | None
+    cpf: str
+    avatar_url: str | None
+    is_active: bool
+    created_at: datetime
+    last_activity_at: datetime | None  # última aula assistida (JWT não grava last_login)
+    enrollments: list[RequesterEnrollmentOut]
+    other_tickets: list[RequesterTicketOut]
+
+
 class MessageIn(Schema):
     body: str
 

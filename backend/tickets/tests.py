@@ -3,6 +3,11 @@ from types import SimpleNamespace
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.utils import timezone
+from ninja.errors import HttpError
+
+from courses.models import Course, Lesson, Module
+from enrollments.models import CourseEnrollment, LessonProgress
 
 from .api import (
     _clean_upload,
@@ -10,11 +15,12 @@ from .api import (
     admin_list_tickets,
     admin_open_count,
     admin_set_status,
+    admin_ticket_requester,
     create_ticket,
     get_ticket,
 )
 from .models import Ticket
-from .schemas import StatusIn, TicketMessageOut
+from .schemas import RequesterOut, StatusIn, TicketMessageOut
 
 # Uploads em memória: nunca toca o MinIO nos testes.
 MEM_STORAGE = {
@@ -80,14 +86,41 @@ class TicketFlowTests(TestCase):
         t.refresh_from_db()
         self.assertEqual(t.status, Ticket.Status.RESOLVED)  # não reabriu
 
-    def test_admin_nao_reabre_resolvido(self):
+    def test_admin_reabre_resolvido(self):
         create_ticket(self._req(self.aluno), category='bug', body='b', file=None)
         t = Ticket.objects.get()
         admin_set_status(self._req(self.staff), t.id, StatusIn(status='resolved'))
         res = admin_set_status(self._req(self.staff), t.id, StatusIn(status='in_progress'))
-        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.status_code, 200)
         t.refresh_from_db()
-        self.assertEqual(t.status, Ticket.Status.RESOLVED)
+        self.assertEqual(t.status, Ticket.Status.IN_PROGRESS)
+        # reaberto volta a aceitar mensagem do aluno
+        self.assertEqual(add_message(self._req(self.aluno), t.id, body='voltou', file=None).status_code, 201)
+
+    def test_requester_traz_perfil_matriculas_e_outros_chamados(self):
+        course = Course.objects.create(name="Curso X", category="sales")
+        module = Module.objects.create(course=course, name='M1', is_published=True)
+        aula1 = Lesson.objects.create(module=module, name='A1', order=1, is_published=True)
+        Lesson.objects.create(module=module, name='A2', order=2, is_published=True)
+        CourseEnrollment.objects.create(user=self.aluno, course=course, source='kiwify')
+        LessonProgress.objects.create(user=self.aluno, lesson=aula1, completed_at=timezone.now())
+        create_ticket(self._req(self.aluno), category='bug', body='1', file=None)
+        create_ticket(self._req(self.aluno), category='doubt', body='2', file=None)
+        t = Ticket.objects.order_by('id').last()
+
+        res = admin_ticket_requester(self._req(self.staff), t.id)
+        out = RequesterOut.model_validate(res.value)
+        self.assertEqual(out.email, self.aluno.email)
+        self.assertEqual(len(out.enrollments), 1)
+        e = out.enrollments[0]
+        self.assertEqual((e.course_name, e.source, e.completed, e.total), ('Curso X', 'kiwify', 1, 2))
+        self.assertIsNotNone(out.last_activity_at)
+        self.assertEqual([o.category_label for o in out.other_tickets], ['Reportar Bug'])
+
+    def test_requester_so_staff(self):
+        create_ticket(self._req(self.aluno), category='bug', body='b', file=None)
+        with self.assertRaises(HttpError):
+            admin_ticket_requester(self._req(self.aluno), Ticket.objects.get().id)
 
     def test_open_count_conta_so_abertos(self):
         create_ticket(self._req(self.aluno), category='bug', body='1', file=None)

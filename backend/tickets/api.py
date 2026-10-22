@@ -7,9 +7,11 @@ from ninja.files import UploadedFile
 
 from core.utils.errors import Error
 from core.utils.permissions import staff_required
+from courses.models import Lesson
+from enrollments.models import CourseEnrollment, LessonProgress
 
 from .models import Ticket, TicketMessage
-from .schemas import MessageIn, StatusIn, TicketDetailOut, TicketMessageOut, TicketOut  # noqa: F401 (MessageIn: doc do shape do body)
+from .schemas import MessageIn, RequesterOut, StatusIn, TicketDetailOut, TicketMessageOut, TicketOut  # noqa: F401 (MessageIn: doc do shape do body)
 
 router = Router(tags=['Tickets'])
 
@@ -129,15 +131,54 @@ def admin_open_count(request):
     return {'count': Ticket.objects.filter(status=Ticket.Status.OPEN).count()}
 
 
+@router.get('/admin/{ticket_id}/requester', response={200: RequesterOut, 404: Error})
+def admin_ticket_requester(request, ticket_id: int):
+    """Ficha completa do aluno do chamado: perfil, matrículas com progresso e outros chamados."""
+    staff_required(request)
+    ticket = get_object_or_404(Ticket.objects.select_related('user'), id=ticket_id)
+    user = ticket.user
+
+    # ponytail: 2 counts por matrícula; ok com poucos cursos por aluno.
+    enrollments = []
+    for e in CourseEnrollment.objects.filter(user=user).select_related('course').order_by('-enrolled_at'):
+        enrollments.append({
+            'course_name': e.course.name,
+            'is_active': e.is_active,
+            'enrolled_at': e.enrolled_at,
+            'expires_at': e.expires_at,
+            'source': e.source,
+            'total': Lesson.objects.filter(module__course=e.course_id, is_published=True).count(),
+            'completed': LessonProgress.objects.filter(
+                user=user,
+                lesson__module__course=e.course_id,
+                lesson__is_published=True,
+                completed_at__isnull=False,
+            ).count(),
+        })
+
+    last = LessonProgress.objects.filter(user=user).order_by('-last_watched_at').first()
+    return Status(200, {
+        'id': user.id,
+        'name': user.name,
+        'email': user.email,
+        'phone': user.phone,
+        'cpf': user.cpf,
+        'avatar_url': user.avatar.url if user.avatar else None,
+        'is_active': user.is_active,
+        'created_at': user.created_at,
+        'last_activity_at': last.last_watched_at if last else None,
+        'enrollments': enrollments,
+        'other_tickets': Ticket.objects.filter(user=user).exclude(id=ticket.id).order_by('-created_at'),
+    })
+
+
 @router.patch('/admin/{ticket_id}/status', response={200: TicketOut, 400: Error, 404: Error})
 def admin_set_status(request, ticket_id: int, data: StatusIn):
     staff_required(request)
     if data.status not in Ticket.Status.values:
         return Status(400, Error(detail='Status inválido'))
     ticket = get_object_or_404(Ticket, id=ticket_id)
-    # ponytail: RESOLVED é terminal, nem staff reabre. Override manual = mudar no dj-admin.
-    if ticket.status == Ticket.Status.RESOLVED and data.status != Ticket.Status.RESOLVED:
-        return Status(400, Error(detail='Chamado finalizado não pode ser reaberto'))
+    # Staff pode reabrir um RESOLVED (vira o status pedido). Aluno segue sem reabrir: add_message barra.
     ticket.status = data.status
     ticket.save(update_fields=['status', 'updated_at'])
     return Status(200, ticket)
