@@ -33,7 +33,9 @@ class NewUserFromWebhook(Schema):
 class UserOut(Schema):
     id: int
     name: str | None
-    email: EmailStr
+    # str, não EmailStr: saída não valida. Webhook/CRM gravam email cru e um único
+    # email malformado no banco derrubava a listagem inteira com 500.
+    email: str
     phone: str | None = None
     cpf: str = ''
     avatar: str | None = None
